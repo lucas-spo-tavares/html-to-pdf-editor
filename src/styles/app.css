@@ -267,9 +267,15 @@
   background: transparent;
   color: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: grab;
   outline: none;
   user-select: none;
+}
+
+.canvas-object.dragging,
+.canvas-child-object.dragging {
+  cursor: grabbing;
+  z-index: 20;
 }
 
 .padding-overlay {

@@ -52,6 +52,12 @@ const presetUnits: Record<Exclude<PageSize['name'], 'Custom'>, typeof sampleDocu
   Legal: 'in',
 };
 
+const pixelsPerUnit = {
+  px: 1,
+  mm: 3.7795275591,
+  in: 96,
+};
+
 const flattenObjects = (objects: EditorObject[]): EditorObject[] =>
   objects.flatMap((object) => [object, ...flattenObjects(object.children ?? [])]);
 
@@ -183,7 +189,8 @@ const objectStyle = (object: EditorObject, unit: string, selected: boolean) => (
   height: `${object.frame.height}${unit}`,
   background: object.style.background,
   color: object.style.color,
-  border: selected ? '1.5px solid #1570ef' : object.style.border,
+  border: object.style.border,
+  outline: selected ? '1.5px solid #1570ef' : undefined,
   borderRadius: object.style.borderRadius === undefined ? undefined : `${object.style.borderRadius}${unit}`,
   padding: object.style.padding === undefined ? undefined : `${object.style.padding}${unit}`,
   fontSize: object.style.fontSize === undefined ? undefined : `${object.style.fontSize}pt`,
@@ -206,6 +213,7 @@ function App() {
   const [showBoxModel, setShowBoxModel] = useState(false);
   const [viewport, setViewport] = useState({ x: 260, y: 140, zoom: 1 });
   const [isPanning, setIsPanning] = useState(false);
+  const [draggingId, setDraggingId] = useState<string>();
   const [openPanels, setOpenPanels] = useState<Set<string>>(
     () => new Set(['context', 'tree', 'object', 'text', 'style']),
   );
@@ -217,6 +225,14 @@ function App() {
   const [formattedCode, setFormattedCode] = useState('');
   const printRef = useRef<HTMLDivElement>(null);
   const panStartRef = useRef({ pointerId: 0, x: 0, y: 0, viewportX: 0, viewportY: 0 });
+  const objectDragRef = useRef({
+    pointerId: 0,
+    objectId: '',
+    x: 0,
+    y: 0,
+    frameX: 0,
+    frameY: 0,
+  });
 
   useEffect(() => {
     const next = parseContext(documentState.contextText, lastValidContext);
@@ -242,6 +258,55 @@ function App() {
       void formatHtml(templateHtml).then(setFormattedCode);
     }
   }, [mode, templateHtml]);
+
+  useEffect(() => {
+    if (!draggingId) return;
+
+    const moveDragging = (event: PointerEvent) => {
+      const drag = objectDragRef.current;
+      if (!drag.objectId) return;
+
+      const unitScale = pixelsPerUnit[documentState.unit];
+      const deltaX = (event.clientX - drag.x) / viewport.zoom / unitScale;
+      const deltaY = (event.clientY - drag.y) / viewport.zoom / unitScale;
+
+      setDocumentState((current) => ({
+        ...current,
+        objects: updateObject(current.objects, drag.objectId, (object) => ({
+          ...object,
+          frame: {
+            ...object.frame,
+            x: drag.frameX + deltaX,
+            y: drag.frameY + deltaY,
+          },
+        })),
+      }));
+    };
+
+    const stopDragging = () => {
+      objectDragRef.current = {
+        pointerId: 0,
+        objectId: '',
+        x: 0,
+        y: 0,
+        frameX: 0,
+        frameY: 0,
+      };
+      setDraggingId(undefined);
+    };
+
+    window.addEventListener('pointermove', moveDragging);
+    window.addEventListener('pointerup', stopDragging);
+    window.addEventListener('pointercancel', stopDragging);
+    window.addEventListener('blur', stopDragging);
+
+    return () => {
+      window.removeEventListener('pointermove', moveDragging);
+      window.removeEventListener('pointerup', stopDragging);
+      window.removeEventListener('pointercancel', stopDragging);
+      window.removeEventListener('blur', stopDragging);
+    };
+  }, [documentState.unit, draggingId, viewport.zoom]);
 
   const templateAutocomplete = useMemo(
     () =>
@@ -504,6 +569,7 @@ function App() {
   const renderCanvasObject = (object: EditorObject, nested = false) => {
     const selected = selectedId === object.id;
     const selectObject = () => setSelectedId(object.id);
+    const dragging = draggingId === object.id;
     const padding = object.style.padding ?? 0;
     const content =
       object.type === 'text' ? (
@@ -514,11 +580,27 @@ function App() {
 
     return (
       <div
-        className={nested ? 'canvas-child-object' : 'canvas-object'}
+        className={`${nested ? 'canvas-child-object' : 'canvas-object'}${dragging ? ' dragging' : ''}`}
         key={object.id}
         onClick={(event) => {
           event.stopPropagation();
           selectObject();
+        }}
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          objectDragRef.current = {
+            pointerId: event.pointerId,
+            objectId: object.id,
+            x: event.clientX,
+            y: event.clientY,
+            frameX: object.frame.x,
+            frameY: object.frame.y,
+          };
+          setSelectedId(object.id);
+          setDraggingId(object.id);
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
