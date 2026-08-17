@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   Code2,
+  Copy,
   Download,
   Eye,
   FileText,
@@ -223,6 +224,7 @@ function App() {
   const [lastValidContext, setLastValidContext] = useState<Record<string, unknown>>(() => JSON.parse(sampleDocument.contextText));
   const [contextError, setContextError] = useState<string>();
   const [formattedCode, setFormattedCode] = useState('');
+  const [copiedCode, setCopiedCode] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const panStartRef = useRef({ pointerId: 0, x: 0, y: 0, viewportX: 0, viewportY: 0 });
   const objectDragRef = useRef({
@@ -365,6 +367,18 @@ function App() {
       iframe.contentWindow?.print();
       window.setTimeout(() => iframe.remove(), 500);
     };
+  };
+
+  const copyCodeToClipboard = async () => {
+    const code = formattedCode || templateHtml;
+
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(true);
+      window.setTimeout(() => setCopiedCode(false), 1400);
+    } catch {
+      setCopiedCode(false);
+    }
   };
 
   const setZoom = (zoom: number) => {
@@ -975,20 +989,34 @@ function App() {
           )}
 
           {mode === 'code' && (
-            <div className="code-view">
-              <CodeMirror
-                basicSetup={{
-                  foldGutter: true,
-                  highlightActiveLine: false,
-                  highlightActiveLineGutter: false,
-                  lineNumbers: true,
-                }}
-                editable={false}
-                extensions={[htmlLanguage(), EditorView.lineWrapping]}
-                height="100%"
-                theme="dark"
-                value={formattedCode || templateHtml}
-              />
+            <div className="code-frame">
+              <div className="code-actions code-actions-top">
+                <button className={copiedCode ? 'copy-code-button copied' : 'copy-code-button'} onClick={copyCodeToClipboard} type="button">
+                  <Copy size={16} />
+                  {copiedCode ? 'Copiado' : 'Copiar HTML'}
+                </button>
+              </div>
+              <div className="code-view">
+                <CodeMirror
+                  basicSetup={{
+                    foldGutter: true,
+                    highlightActiveLine: false,
+                    highlightActiveLineGutter: false,
+                    lineNumbers: true,
+                  }}
+                  editable={false}
+                  extensions={[htmlLanguage(), EditorView.lineWrapping]}
+                  height="100%"
+                  theme="dark"
+                  value={formattedCode || templateHtml}
+                />
+              </div>
+              <div className="code-actions code-actions-bottom">
+                <button className={copiedCode ? 'copy-code-button copied' : 'copy-code-button'} onClick={copyCodeToClipboard} type="button">
+                  <Copy size={16} />
+                  {copiedCode ? 'Copiado' : 'Copiar HTML'}
+                </button>
+              </div>
             </div>
           )}
         </section>
