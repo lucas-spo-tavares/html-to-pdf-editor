@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import CodeMirror from '@uiw/react-codemirror';
+import { autocompletion, type CompletionContext } from '@codemirror/autocomplete';
+import { html as htmlLanguage } from '@codemirror/lang-html';
+import { json as jsonLanguage } from '@codemirror/lang-json';
+import { EditorView } from '@codemirror/view';
 import {
   Box,
   Braces,
@@ -25,7 +30,6 @@ import { sampleDocument } from './editor/document/sampleDocument';
 import { generateTemplateHtml } from './editor/document/htmlGenerator';
 import { parseContext, getPathSuggestions } from './editor/template-language/context';
 import { formatHtml } from './editor/template-language/formatHtml';
-import { highlightCode, highlightJson, highlightTemplateText } from './editor/template-language/highlight';
 import { renderTemplate } from './editor/template-language/renderTemplate';
 
 const modeItems: Array<{ id: EditorMode; label: string; icon: typeof MousePointer2 }> = [
@@ -211,11 +215,7 @@ function App() {
   const [lastValidContext, setLastValidContext] = useState<Record<string, unknown>>(() => JSON.parse(sampleDocument.contextText));
   const [contextError, setContextError] = useState<string>();
   const [formattedCode, setFormattedCode] = useState('');
-  const [textTypingExpression, setTextTypingExpression] = useState<ReturnType<typeof getTypingExpression>>();
   const printRef = useRef<HTMLDivElement>(null);
-  const jsonHighlightRef = useRef<HTMLPreElement>(null);
-  const textHighlightRef = useRef<HTMLPreElement>(null);
-  const textInputRef = useRef<HTMLTextAreaElement>(null);
   const panStartRef = useRef({ pointerId: 0, x: 0, y: 0, viewportX: 0, viewportY: 0 });
 
   useEffect(() => {
@@ -243,64 +243,34 @@ function App() {
     }
   }, [mode, templateHtml]);
 
-  const handleContextKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Tab') return;
+  const templateAutocomplete = useMemo(
+    () =>
+      autocompletion({
+        override: [
+          (context: CompletionContext) => {
+            const expression = getTypingExpression(context.state.doc.toString(), context.pos);
+            if (!expression) return null;
 
-    event.preventDefault();
-    const target = event.currentTarget;
-    const start = target.selectionStart;
-    const end = target.selectionEnd;
-    const next = `${documentState.contextText.slice(0, start)}  ${documentState.contextText.slice(end)}`;
+            const path = expression.path;
+            const options = path.includes('.')
+              ? getPathSuggestions(lastValidContext, path.slice(0, path.lastIndexOf('.')))
+                  .filter((key) => key.startsWith(path.slice(path.lastIndexOf('.') + 1)))
+                  .map((key) => ({ label: key, type: 'property' }))
+              : Object.keys(lastValidContext)
+                  .filter((key) => key.startsWith(path))
+                  .map((key) => ({ label: key, type: 'variable' }));
 
-    setDocumentState((current) => ({ ...current, contextText: next }));
+            if (options.length === 0) return null;
 
-    window.requestAnimationFrame(() => {
-      target.selectionStart = start + 2;
-      target.selectionEnd = start + 2;
-    });
-  };
-
-  const handleContextScroll = (event: React.UIEvent<HTMLTextAreaElement>) => {
-    if (!jsonHighlightRef.current) return;
-
-    jsonHighlightRef.current.scrollTop = event.currentTarget.scrollTop;
-    jsonHighlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
-  };
-
-  const updateTextTypingExpression = (target: HTMLTextAreaElement) => {
-    setTextTypingExpression(getTypingExpression(target.value, target.selectionStart));
-  };
-
-  const handleTextScroll = (event: React.UIEvent<HTMLTextAreaElement>) => {
-    if (!textHighlightRef.current) return;
-
-    textHighlightRef.current.scrollTop = event.currentTarget.scrollTop;
-    textHighlightRef.current.scrollLeft = event.currentTarget.scrollLeft;
-  };
-
-  const insertTextSuggestion = (suggestion: string) => {
-    if (!selectedObject || selectedObject.type !== 'text' || !textTypingExpression) return;
-
-    const currentValue = selectedObject.content ?? '';
-    const prefix = textTypingExpression.path.includes('.')
-      ? `${textTypingExpression.path.slice(0, textTypingExpression.path.lastIndexOf('.') + 1)}${suggestion}`
-      : suggestion;
-    const nextValue = `${currentValue.slice(0, textTypingExpression.start)}${prefix}${currentValue.slice(textTypingExpression.end)}`;
-    const nextCaret = textTypingExpression.start + prefix.length;
-
-    setDocumentState((current) => ({
-      ...current,
-      objects: updateObjectContent(current.objects, selectedObject.id, nextValue),
-    }));
-
-    window.requestAnimationFrame(() => {
-      if (!textInputRef.current) return;
-      textInputRef.current.focus();
-      textInputRef.current.selectionStart = nextCaret;
-      textInputRef.current.selectionEnd = nextCaret;
-      updateTextTypingExpression(textInputRef.current);
-    });
-  };
+            return {
+              from: expression.path.includes('.') ? expression.start + expression.path.lastIndexOf('.') + 1 : expression.start,
+              options,
+            };
+          },
+        ],
+      }),
+    [lastValidContext],
+  );
 
   const handlePrint = () => {
     if (rendered.error) return;
@@ -609,16 +579,6 @@ function App() {
     );
   };
 
-  const selectedTypingPath = selectedObject?.type === 'text' ? textTypingExpression?.path ?? '' : '';
-  const suggestions =
-    selectedObject?.type === 'text' && textTypingExpression
-      ? selectedTypingPath.includes('.')
-        ? getPathSuggestions(lastValidContext, selectedTypingPath.slice(0, selectedTypingPath.lastIndexOf('.'))).filter((key) =>
-            key.startsWith(selectedTypingPath.slice(selectedTypingPath.lastIndexOf('.') + 1)),
-          )
-        : Object.keys(lastValidContext).filter((key) => key.startsWith(selectedTypingPath))
-      : [];
-
   return (
     <div className="app-shell">
       <div className="canvas-toggles" aria-label="Canvas toggles">
@@ -775,22 +735,16 @@ function App() {
           </AccordionPanel>
 
           <AccordionPanel id="context" icon={<Braces size={16} />} onToggle={togglePanel} openPanels={openPanels} title="Contexto JSON">
-            <div className="json-editor-wrap">
-              <pre
-                aria-hidden="true"
-                className="json-highlight"
-                dangerouslySetInnerHTML={{ __html: highlightJson(documentState.contextText) }}
-                ref={jsonHighlightRef}
-              />
-              <textarea
-                aria-label="Contexto JSON"
-                className="json-input"
-                onChange={(event) =>
-                  setDocumentState((current) => ({ ...current, contextText: event.target.value }))
-                }
-                onKeyDown={handleContextKeyDown}
-                onScroll={handleContextScroll}
-                spellCheck={false}
+            <div className="codemirror-box json-editor-wrap">
+              <CodeMirror
+                basicSetup={{
+                  foldGutter: true,
+                  highlightActiveLine: true,
+                  lineNumbers: true,
+                }}
+                extensions={[jsonLanguage(), EditorView.lineWrapping]}
+                height="250px"
+                onChange={(value) => setDocumentState((current) => ({ ...current, contextText: value }))}
                 value={documentState.contextText}
               />
             </div>
@@ -897,9 +851,21 @@ function App() {
           )}
 
           {mode === 'code' && (
-            <pre className="code-view">
-              <code dangerouslySetInnerHTML={{ __html: highlightCode(formattedCode || templateHtml) }} />
-            </pre>
+            <div className="code-view">
+              <CodeMirror
+                basicSetup={{
+                  foldGutter: true,
+                  highlightActiveLine: false,
+                  highlightActiveLineGutter: false,
+                  lineNumbers: true,
+                }}
+                editable={false}
+                extensions={[htmlLanguage(), EditorView.lineWrapping]}
+                height="100%"
+                theme="dark"
+                value={formattedCode || templateHtml}
+              />
+            </div>
           )}
         </section>
 
@@ -936,42 +902,24 @@ function App() {
             <>
               {selectedObject.type === 'text' && (
                 <AccordionPanel id="text" icon={<TypeIcon size={16} />} onToggle={togglePanel} openPanels={openPanels} title="Texto">
-                  <div className="text-editor-wrap">
-                    <pre
-                      aria-hidden="true"
-                      className="text-highlight"
-                      dangerouslySetInnerHTML={{ __html: highlightTemplateText(selectedObject.content ?? '') }}
-                      ref={textHighlightRef}
-                    />
-                    <textarea
-                      className="text-input"
-                      id="text-content"
-                      onChange={(event) => {
+                  <div className="codemirror-box text-editor-wrap">
+                    <CodeMirror
+                      basicSetup={{
+                        foldGutter: false,
+                        highlightActiveLine: true,
+                        lineNumbers: false,
+                      }}
+                      extensions={[templateAutocomplete, EditorView.lineWrapping]}
+                      height="112px"
+                      onChange={(value) =>
                         setDocumentState((current) => ({
                           ...current,
-                          objects: updateObjectContent(current.objects, selectedObject.id, event.target.value),
-                        }));
-                        updateTextTypingExpression(event.currentTarget);
-                      }}
-                      onClick={(event) => updateTextTypingExpression(event.currentTarget)}
-                      onKeyUp={(event) => updateTextTypingExpression(event.currentTarget)}
-                      onScroll={handleTextScroll}
-                      onSelect={(event) => updateTextTypingExpression(event.currentTarget)}
-                      ref={textInputRef}
-                      spellCheck={false}
-                      value={selectedObject.content}
+                          objects: updateObjectContent(current.objects, selectedObject.id, value),
+                        }))
+                      }
+                      value={selectedObject.content ?? ''}
                     />
                   </div>
-
-                  {suggestions.length > 0 && (
-                    <div className="suggestions">
-                      {suggestions.slice(0, 5).map((suggestion) => (
-                        <button key={suggestion} onClick={() => insertTextSuggestion(suggestion)} type="button">
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </AccordionPanel>
               )}
 
