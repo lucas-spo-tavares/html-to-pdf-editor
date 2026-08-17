@@ -4,10 +4,11 @@
 
 Este projeto e uma POC de um editor visual single page para criar templates HTML exportaveis como PDF. A experiencia principal deve lembrar uma ferramenta de design como o Figma, mas com um escopo bem mais limitado e focado em documentos: paginas, objetos posicionaveis, propriedades visuais, variaveis de template e exportacao.
 
-O editor tera dois modos principais:
+O editor tera tres modos principais:
 
-- **Edicao**: preview visual com interacao direta nos objetos.
-- **Codigo**: visualizacao readonly do HTML gerado.
+- **Edicao**: canvas visual com interacao direta nos objetos.
+- **Preview**: visualizacao do HTML final renderizado com o contexto JSON, sem controles de edicao.
+- **Codigo**: visualizacao readonly do HTML template gerado.
 
 O objetivo nao e criar um editor HTML generico. O objetivo e criar uma interface produtiva para montar templates reutilizaveis que aceitam dados dinamicos e podem ser renderizados com seguranca em PDF.
 
@@ -18,8 +19,7 @@ O objetivo nao e criar um editor HTML generico. O objetivo e criar uma interface
 - shadcn/ui como base de componentes
 - Arquitetura com componentes atomicos
 - Single page app
-- Docker para renderizacao PDF
-- Chromium + Puppeteer no container de PDF
+- Renderizacao PDF pelo frontend na POC
 
 ## Configuracao Git desejada
 
@@ -64,7 +64,7 @@ O produto e um editor de templates HTML para PDF. O usuario monta uma ou mais vi
 
 ### Modo edicao
 
-O modo edicao combina preview e manipulacao visual. Ele deve permitir selecionar, mover, redimensionar e configurar objetos na pagina.
+O modo edicao combina canvas visual e manipulacao direta. Ele deve permitir selecionar, mover, redimensionar e configurar objetos na pagina.
 
 Elementos esperados:
 
@@ -79,15 +79,33 @@ Elementos esperados:
 - Hints de posicionamento e alinhamento.
 - Drag and drop de imagens do computador para o browser.
 
+### Modo preview
+
+O modo preview mostra o documento final renderizado pelo frontend a partir do HTML template e do contexto JSON atual. Ele serve para validar rapidamente o resultado visual sem precisar acionar exportacao PDF toda hora.
+
+Comportamentos esperados:
+
+- Renderizar variaveis `{{ }}` com os dados do contexto.
+- Aplicar condicionais e repeticoes suportadas pela engine de template.
+- Mostrar o documento sem controles de selecao, drag, resize ou painel de propriedades de objeto.
+- Usar as mesmas dimensoes de pagina, fontes, imagens e estilos que serao usados no PDF.
+- Atualizar quando o template, os objetos, assets ou o contexto valido mudarem.
+- Exibir erro claro quando a renderizacao do template falhar.
+- Permitir acionar exportacao PDF a partir dessa visualizacao.
+
+Esse modo deve representar o HTML final que o navegador vai imprimir/salvar como PDF. Ele nao substitui o modo codigo, porque o modo codigo mostra o template com `{{ }}`, `{% if %}` e `{% for %}`, enquanto o preview mostra o resultado ja resolvido.
+
 ### Modo codigo
 
-O modo codigo mostra o HTML gerado em readonly. Ele serve para transparencia e debug, nao para edicao direta nesta POC.
+O modo codigo mostra o HTML template gerado em readonly. Ele serve para transparencia e debug, nao para edicao direta nesta POC.
 
 Elementos esperados:
 
 - HTML formatado.
+- Formatar automaticamente o HTML gerado quando o modo codigo for aberto.
+- Syntax highlight para HTML, CSS inline e expressoes de template.
 - Estado readonly claro.
-- Alternancia facil entre edicao e codigo.
+- Alternancia facil entre edicao, preview e codigo.
 
 ## Canvas e paginas
 
@@ -215,6 +233,8 @@ Objetos de texto devem permitir:
 
 - Conteudo textual
 - Variaveis como `{{ name }}`
+- Highlight visual para variaveis dentro do texto.
+- Autocomplete de variaveis baseado no contexto conhecido.
 - Bold
 - Italico
 - Rasurado
@@ -225,6 +245,45 @@ Objetos de texto devem permitir:
 - Cor
 - Alinhamento
 - Altura de linha
+
+### Edicao de texto com variaveis
+
+Ao editar o conteudo de um objeto de texto, o usuario deve ter uma experiencia de escrita assistida para variaveis. O objetivo nao e expor um editor completo de sintaxe Django nesse campo, mas sim ajudar a escrever interpolacoes simples no formato `{{ variavel }}` e `{{ objeto.atributo }}`.
+
+Comportamentos esperados:
+
+- Realcar visualmente trechos como `{{ name }}` e `{{ user.name }}` dentro do texto.
+- Detectar quando o usuario esta escrevendo dentro de `{{ }}`.
+- Sugerir variaveis disponiveis a partir de um contexto conhecido.
+- Sugerir atributos quando o usuario escrever um prefixo com ponto, como `user.`.
+- Inserir a sugestao selecionada sem quebrar o restante do texto.
+- Manter o texto normal editavel ao redor das variaveis.
+
+Exemplo de contexto:
+
+```json
+{
+  "user": {
+    "name": "Lucas",
+    "age": 32
+  },
+  "invoice": {
+    "total": "R$ 120,00"
+  }
+}
+```
+
+Exemplos de autocomplete:
+
+- Ao digitar `{{ u`, sugerir `user`.
+- Ao digitar `{{ user.`, sugerir `name` e `age`.
+- Ao digitar `{{ invoice.`, sugerir `total`.
+
+Na POC, esse contexto pode vir de dados mockados configurados no documento. No futuro, pode vir de uma amostra real de dados ou de um schema informado pelo usuario.
+
+Essa experiencia de highlight e autocomplete se aplica principalmente a variaveis simples. Condicionais e repeticoes continuam sendo configuradas por propriedades do objeto/grupo no painel lateral, em vez de exigir que o usuario escreva blocos Django manualmente dentro do texto.
+
+O autocomplete deve usar a ultima versao valida do contexto JSON do documento. Se o usuario estiver editando o contexto e deixar o JSON temporariamente invalido, as sugestoes podem continuar usando o ultimo contexto valido ate que a sintaxe seja corrigida.
 
 ### Fontes
 
@@ -241,7 +300,7 @@ Fontes adicionadas pelo usuario devem ser tratadas como assets do template. Isso
 
 - Devem ser incluidas no `.zip` exportado.
 - Devem ser restauradas ao importar um `.zip` com `editor.json`.
-- Devem ser enviadas para o renderer PDF junto com o HTML e as imagens.
+- Devem estar disponiveis para o exportador PDF do frontend junto com o HTML e as imagens.
 - Devem ser declaradas no HTML/CSS gerado usando `@font-face`, quando forem arquivos locais.
 
 Exemplo conceitual:
@@ -255,7 +314,7 @@ Exemplo conceitual:
 }
 ```
 
-Para fontes do Google Fonts, a POC pode comecar salvando a URL de importacao ou stylesheet no estado do documento. Em uma evolucao mais robusta, o editor pode baixar e empacotar os arquivos da fonte para garantir que a renderizacao PDF seja reproduzivel mesmo sem depender de rede no container.
+Para fontes do Google Fonts, a POC pode comecar salvando a URL de importacao ou stylesheet no estado do documento. Em uma evolucao mais robusta, o editor pode baixar e empacotar os arquivos da fonte para garantir que a renderizacao PDF seja reproduzivel sem depender de rede no momento da exportacao.
 
 ### Imagens
 
@@ -289,6 +348,46 @@ O painel lateral mostra as propriedades do objeto selecionado. Quando nada estiv
 - Unidade de medida
 - Cor de fundo
 - Configuracoes globais do documento
+- Contexto JSON do template.
+
+### Contexto JSON do template
+
+O editor deve oferecer um campo para configurar o contexto de dados do template. Esse campo pode ficar no painel lateral quando nenhum objeto estiver selecionado, em uma aba de configuracoes do documento ou em um painel dedicado de dados.
+
+O contexto deve ser editado como JSON e usado para:
+
+- Sugerir variaveis no autocomplete dos objetos de texto.
+- Renderizar preview com dados mockados.
+- Enviar dados para o exportador PDF do frontend quando o usuario exportar um PDF.
+- Testar condicionais e repeticoes configuradas nos objetos/grupos.
+
+Comportamentos esperados do editor de contexto:
+
+- Highlight de JSON.
+- Validacao de sintaxe em tempo real.
+- Mensagem clara quando o JSON estiver invalido.
+- Indicacao visual do local aproximado do erro, se possivel.
+- Suporte a indentacao.
+- Tecla `Tab` deve inserir indentacao no campo, em vez de tirar o foco do editor.
+- O contexto valido deve ser salvo no estado do documento.
+- O contexto invalido nao deve sobrescrever a ultima versao valida usada pelo preview/autocomplete.
+
+Exemplo:
+
+```json
+{
+  "user": {
+    "name": "Lucas",
+    "age": 32
+  },
+  "items": [
+    {
+      "name": "Produto A",
+      "price": 10
+    }
+  ]
+}
+```
 
 ## Hints de alinhamento
 
@@ -302,7 +401,7 @@ A experiencia deve incluir guias visuais durante drag/resize:
 
 ## Templates dinamicos
 
-O diferencial do projeto e permitir templates com dados dinamicos. A sintaxe preferida e parecida com Django templates.
+O diferencial do projeto e permitir templates com dados dinamicos. Para textos, a experiencia principal deve focar em interpolacoes simples no formato `{{ variavel }}` e `{{ objeto.atributo }}`. Para o HTML final, a sintaxe gerada pode usar recursos de template Django, especialmente em condicionais e repeticoes.
 
 ### Variaveis
 
@@ -315,6 +414,7 @@ Exemplos:
 ```
 
 A UI deve permitir inserir variaveis em textos sem obrigar o usuario a escrever o template inteiro manualmente.
+O campo de texto deve ter highlight e autocomplete para interpolacoes `{{ }}`, usando o contexto conhecido do documento para sugerir nomes e atributos.
 
 ### Condicionais
 
@@ -358,6 +458,52 @@ A parte mais importante da POC sera encontrar uma UI simples para `if` e `for`. 
 - Grupo repetivel baseado em uma colecao.
 - Variaveis dentro de textos.
 
+### Renderizacao de template no frontend
+
+Como a POC sera frontend-only, o frontend precisa conseguir renderizar o template com o contexto JSON do documento.
+
+Decisao inicial: usar uma engine JavaScript compativel com sintaxe Django-like, como Nunjucks, para renderizar preview e PDF no proprio browser.
+
+Essa engine deve cobrir pelo menos:
+
+- Variaveis: `{{ user.name }}`.
+- Condicionais: `{% if user.is_active %}`.
+- Repeticoes: `{% for user in users %}`.
+
+O frontend deve tratar essa renderizacao como a base da POC:
+
+- Preview visual com dados do contexto.
+- Modo codigo mostrando o template gerado.
+- Modo preview mostrando o HTML final renderizado.
+- Exportacao PDF a partir do HTML final renderizado no browser.
+
+Ponto importante: a sintaxe escolhida deve ser Django-like, mas o produto nao precisa prometer compatibilidade total com Django. A POC deve suportar um subconjunto bem definido: variaveis, `if` simples e `for` simples.
+
+Exemplo conceitual:
+
+```ts
+type RenderTemplateContext = Record<string, unknown>;
+```
+
+Exemplo de payload:
+
+```json
+{
+  "html": "<p>Ola, {{ user.name }}</p>",
+  "context": {
+    "user": {
+      "name": "Lucas"
+    }
+  }
+}
+```
+
+Resultado intermediario depois de renderizar o template no frontend:
+
+```html
+<p>Ola, Lucas</p>
+```
+
 ## Exportacao
 
 ### Exportar ZIP
@@ -391,103 +537,30 @@ Decisao inicial: a reabertura visual completa depende do `editor.json`. O `index
 
 ### Exportar PDF
 
-O PDF deve ser gerado por um servico Docker com Chromium e Puppeteer.
+Decisao da POC: gerar o PDF diretamente pelo frontend. O editor ja tem o template, os assets e o contexto; portanto, a abordagem deve ser renderizar o template no browser, montar o HTML final e disparar a exportacao PDF no proprio cliente.
 
 Fluxo esperado:
 
-- Frontend envia HTML e assets para o servico de renderizacao.
-- Servico monta a pagina em ambiente isolado.
-- Puppeteer abre o HTML com Chromium.
-- Puppeteer gera o PDF no tamanho correto.
-- PDF e devolvido para download.
+- Frontend gera o HTML template.
+- Frontend renderiza o template com o contexto JSON do documento.
+- Frontend monta uma view final/isolada do documento renderizado, reaproveitando a mesma base do modo preview.
+- Frontend gera o PDF a partir dessa view.
+- PDF e baixado pelo usuario.
 
-### Servico de renderizacao PDF
+Essa abordagem reduz a complexidade porque mantem a POC como uma aplicacao single page.
 
-O renderizador de PDF deve ser tratado como um backend separado do editor visual. A responsabilidade dele e receber um pacote de renderizacao, preparar um ambiente temporario e usar Chromium via Puppeteer para produzir o PDF final.
+Opcoes possiveis para gerar PDF no frontend:
 
-Entrada esperada do servico:
+- Usar `window.print()` com CSS de print e permitir que o usuario salve como PDF pelo navegador.
+- Usar uma iframe/janela isolada para montar o HTML final e chamar print/exportacao.
 
-- HTML final que sera renderizado.
-- Imagens/assets usados pelo HTML.
-- Propriedades de renderizacao, como tamanho da pagina, margens, orientacao e escala.
-- Opcionalmente metadados do documento, como nome do arquivo sugerido.
+Decisao inicial: usar o motor de renderizacao do proprio navegador para gerar o PDF, sem bibliotecas client-side de PDF. A exportacao deve se apoiar em HTML, CSS de print e no fluxo nativo de impressao/salvar como PDF do browser.
 
-Comportamento esperado:
+Limitacoes esperadas:
 
-- Criar um diretorio temporario por requisicao.
-- Salvar o HTML recebido como arquivo local.
-- Salvar os assets enviados em caminhos previsiveis.
-- Abrir o HTML no Chromium usando Puppeteer.
-- Esperar fontes, imagens e estilos carregarem antes de gerar o PDF.
-- Renderizar o PDF usando as dimensoes reais configuradas no editor.
-- Retornar o PDF como resposta binaria.
-- Remover arquivos temporarios ao final da requisicao.
-
-O servico nao deve ser responsavel por editar templates, interpretar a UI ou manter estado do documento. Ele deve ser uma camada pequena e deterministica: recebe HTML, assets e props; devolve PDF.
-
-### Contrato inicial do renderer
-
-Formato conceitual da requisicao:
-
-```ts
-type RenderPdfRequest = {
-  html: string;
-  assets: RenderAsset[];
-  pdf: RenderPdfOptions;
-};
-
-type RenderAsset = {
-  path: string;
-  contentType: string;
-  dataBase64: string;
-};
-
-type RenderPdfOptions = {
-  width?: string;
-  height?: string;
-  format?: 'A4' | 'A5' | 'Letter' | 'Legal';
-  landscape?: boolean;
-  margin?: {
-    top?: string;
-    right?: string;
-    bottom?: string;
-    left?: string;
-  };
-  printBackground?: boolean;
-  scale?: number;
-};
-```
-
-Exemplos de dimensoes aceitas:
-
-- `210mm` x `297mm` para A4.
-- `148mm` x `210mm` para A5.
-- `8.5in` x `11in` para Letter.
-- Medidas customizadas vindas do editor.
-
-Decisao inicial: o frontend continua sendo o dono do HTML gerado e dos assets. O renderer apenas materializa esse pacote dentro do container e chama o Chromium.
-
-### Container Docker do renderer
-
-O container de PDF deve incluir:
-
-- Node.js.
-- Chromium ou Chrome compativel com Puppeteer.
-- Dependencias de sistema exigidas pelo Chromium.
-- Fontes basicas para renderizacao consistente.
-- Um servidor HTTP simples para receber requisicoes de renderizacao.
-
-Pontos importantes:
-
-- O Chromium deve rodar em modo headless.
-- O container deve expor apenas a API de renderizacao.
-- O processo deve ter timeout por requisicao para evitar renderizacoes travadas.
-- O tamanho maximo do payload deve ser limitado.
-- Assets devem ser escritos apenas dentro do diretorio temporario da requisicao.
-- Caminhos de assets precisam ser normalizados para evitar acesso fora do workspace temporario.
-- A API deve retornar erros claros quando o HTML, os assets ou as opcoes forem invalidos.
-
-Na POC, seguranca pode ser simples, mas o desenho deve considerar isolamento desde o inicio porque HTML arbitrario sera executado dentro do Chromium.
+- Fidelidade de CSS pode variar entre navegadores.
+- Controle de paginacao pode ser mais limitado.
+- Fontes, imagens grandes e layouts complexos podem exigir ajustes.
 
 ## Arquitetura inicial sugerida
 
@@ -566,9 +639,11 @@ Esse modelo ainda e apenas guia. A implementacao pode ajustar nomes e estruturas
 - Variaveis em texto.
 - Condicao simples em objeto/grupo.
 - Repeticao simples em grupo.
-- Modo codigo readonly.
+- Modo preview do HTML renderizado.
+- Modo codigo readonly com syntax highlight.
 - Exportacao ZIP.
-- Renderizacao PDF via Docker + Puppeteer.
+- Renderizacao de template no frontend usando contexto JSON.
+- Exportacao PDF pelo frontend.
 
 ### Pode ficar simples
 
@@ -593,8 +668,8 @@ Esse modelo ainda e apenas guia. A implementacao pode ajustar nomes e estruturas
 - Unidade interna principal: `px`, `mm` ou modelo hibrido?
 - Como salvar/reabrir o estado editavel do template?
 - O HTML exportado deve conter CSS inline ou stylesheet separado?
-- O renderizador deve aceitar dados mockados para preview de templates?
-- O suporte a Django templates sera apenas geracao de sintaxe ou tambem renderizacao com dados no preview?
+- Como estruturar CSS de print para preservar tamanho real, margens e quebras de pagina?
+- O suporte a template Django-like deve ficar limitado a variaveis, `if` e `for` simples?
 - A POC precisa suportar multiplas paginas desde o inicio ou pode comecar com uma pagina?
 
 ## Primeira base tecnica proposta
@@ -606,9 +681,10 @@ Quando for hora de implementar, criar:
 - Componentes inspirados em shadcn/ui.
 - Estado local do editor inicialmente em React state ou Zustand.
 - Gerador de HTML separado do canvas.
-- Servico `pdf-renderer` em Docker usando Puppeteer.
-- Scripts de desenvolvimento para frontend e renderer.
+- Renderer de template no frontend, provavelmente usando Nunjucks ou engine equivalente.
+- Exportacao PDF usando o motor de renderizacao do navegador e CSS de print.
+- Scripts de desenvolvimento para o frontend.
 
 ## Criterio de sucesso da POC
 
-A POC sera considerada boa se permitir criar visualmente um template simples com texto, imagem, variaveis, um bloco condicional e um bloco repetivel, visualizar o HTML readonly e exportar um PDF gerado por Chromium com aparencia consistente.
+A POC sera considerada boa se permitir criar visualmente um template simples com texto, imagem, variaveis, um bloco condicional e um bloco repetivel, visualizar o HTML readonly, renderizar o template com contexto JSON no frontend e exportar um PDF pelo browser com aparencia aceitavel.
