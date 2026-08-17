@@ -77,7 +77,6 @@ const renderObject = (object: EditorObject, unit: Unit, absolute = true): string
 export const generateTemplateHtml = (document: EditorDocument) => {
   const { unit } = document;
   const page = document.page.size;
-  const margin = document.page.margin;
   const objects = document.objects.map((object) => renderObject(object, unit)).join('\n');
 
   return `<!doctype html>
@@ -103,11 +102,6 @@ export const generateTemplateHtml = (document: EditorDocument) => {
     background: ${document.page.background};
   }
 
-  .pdf-content {
-    position: absolute;
-    inset: ${unitValue(margin.top, unit)} ${unitValue(margin.right, unit)} ${unitValue(margin.bottom, unit)} ${unitValue(margin.left, unit)};
-  }
-
   .editor-object {
     box-sizing: border-box;
   }
@@ -126,15 +120,13 @@ export const generateTemplateHtml = (document: EditorDocument) => {
 
   @page {
     size: ${unitValue(page.width, unit)} ${unitValue(page.height, unit)};
-    margin: ${unitValue(margin.top, unit)} ${unitValue(margin.right, unit)} ${unitValue(margin.bottom, unit)} ${unitValue(margin.left, unit)};
+    margin: 0;
   }
 </style>
 </head>
 <body>
 <main class="pdf-page">
-<section class="pdf-content">
 ${objects}
-</section>
 </main>
 </body>
 </html>`;

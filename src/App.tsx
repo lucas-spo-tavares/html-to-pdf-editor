@@ -383,6 +383,7 @@ function App() {
   };
 
   const handleStagePointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    if (mode !== 'edit') return;
     if (event.button !== 0 || event.target !== event.currentTarget) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -663,27 +664,31 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="canvas-toggles" aria-label="Canvas toggles">
-        <button className={showRulers ? 'icon-button active' : 'icon-button'} onClick={() => setShowRulers((value) => !value)} title="Alternar regua" type="button">
-          <Ruler size={17} />
-        </button>
-        <button className={showGrid ? 'icon-button active' : 'icon-button'} onClick={() => setShowGrid((value) => !value)} title="Alternar grade" type="button">
-          <Grid3X3 size={17} />
-        </button>
-      </div>
+      {mode === 'edit' && (
+        <>
+          <div className="canvas-toggles" aria-label="Canvas toggles">
+            <button className={showRulers ? 'icon-button active' : 'icon-button'} onClick={() => setShowRulers((value) => !value)} title="Alternar regua" type="button">
+              <Ruler size={17} />
+            </button>
+            <button className={showGrid ? 'icon-button active' : 'icon-button'} onClick={() => setShowGrid((value) => !value)} title="Alternar grade" type="button">
+              <Grid3X3 size={17} />
+            </button>
+          </div>
 
-      <div className="canvas-box-toggle" aria-label="Box model toggles">
-        <button
-          className={showBoxModel ? 'box-model-button active' : 'box-model-button'}
-          onClick={() => setShowBoxModel((value) => !value)}
-          title="Mostrar margens e paddings"
-          type="button"
-        >
-          <span className="box-swatch margin" />
-          <span className="box-swatch padding" />
-          Box model
-        </button>
-      </div>
+          <div className="canvas-box-toggle" aria-label="Box model toggles">
+            <button
+              className={showBoxModel ? 'box-model-button active' : 'box-model-button'}
+              onClick={() => setShowBoxModel((value) => !value)}
+              title="Mostrar margens e paddings"
+              type="button"
+            >
+              <span className="box-swatch margin" />
+              <span className="box-swatch padding" />
+              Box model
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="floating-mode-tabs" role="tablist" aria-label="Editor mode">
         {modeItems.map((item) => {
@@ -704,25 +709,30 @@ function App() {
         })}
       </div>
 
-      <button className="floating-export primary-button" onClick={handlePrint} type="button">
-        <Download size={16} />
-        Exportar PDF
-      </button>
+      {mode !== 'code' && (
+        <button className="floating-export primary-button" onClick={handlePrint} type="button">
+          <Download size={16} />
+          Exportar PDF
+        </button>
+      )}
 
-      <div className="canvas-zoom" aria-label="Canvas zoom controls">
-        <button className="icon-button" onClick={() => setZoom(viewport.zoom - 0.1)} title="Diminuir zoom" type="button">
-          <Minus size={17} />
-        </button>
-        <span>{Math.round(viewport.zoom * 100)}%</span>
-        <button className="icon-button" onClick={() => setZoom(viewport.zoom + 0.1)} title="Aumentar zoom" type="button">
-          <Plus size={17} />
-        </button>
-        <button className="icon-button" onClick={centerCanvas} title="Centralizar canvas" type="button">
-          <LocateFixed size={17} />
-        </button>
-      </div>
+      {mode === 'edit' && (
+        <div className="canvas-zoom" aria-label="Canvas zoom controls">
+          <button className="icon-button" onClick={() => setZoom(viewport.zoom - 0.1)} title="Diminuir zoom" type="button">
+            <Minus size={17} />
+          </button>
+          <span>{Math.round(viewport.zoom * 100)}%</span>
+          <button className="icon-button" onClick={() => setZoom(viewport.zoom + 0.1)} title="Aumentar zoom" type="button">
+            <Plus size={17} />
+          </button>
+          <button className="icon-button" onClick={centerCanvas} title="Centralizar canvas" type="button">
+            <LocateFixed size={17} />
+          </button>
+        </div>
+      )}
 
-      <main className="workspace">
+      <main className={`workspace ${mode}`}>
+        {mode === 'edit' && (
         <aside className="page-inspector">
           <AccordionPanel id="page" icon={<FileText size={16} />} onToggle={togglePanel} openPanels={openPanels} title="Page">
             <label className="control-field stacked">
@@ -859,9 +869,41 @@ function App() {
             </nav>
           </AccordionPanel>
         </aside>
+        )}
+
+        {mode === 'preview' && (
+          <aside className="page-inspector preview-context-panel">
+            <section className="panel accordion-panel open">
+              <div className="static-panel-heading">
+                <span className="accordion-title">
+                  <Braces size={16} />
+                  <span>Contexto JSON</span>
+                </span>
+              </div>
+              <div className="accordion-content">
+                <div className="codemirror-box json-editor-wrap preview-json-editor">
+                  <CodeMirror
+                    basicSetup={{
+                      foldGutter: true,
+                      highlightActiveLine: true,
+                      lineNumbers: true,
+                    }}
+                    extensions={[jsonLanguage(), EditorView.lineWrapping]}
+                    height="calc(100vh - 112px)"
+                    onChange={(value) => setDocumentState((current) => ({ ...current, contextText: value }))}
+                    value={documentState.contextText}
+                  />
+                </div>
+                <p className={contextError ? 'status error' : 'status ok'}>
+                  {contextError ? contextError : 'JSON valido'}
+                </p>
+              </div>
+            </section>
+          </aside>
+        )}
 
         <section
-          className={isPanning ? 'stage panning' : 'stage'}
+          className={mode === 'edit' && isPanning ? 'stage panning' : `stage ${mode}`}
           onPointerCancel={stopPanning}
           onPointerDown={handleStagePointerDown}
           onPointerMove={handleStagePointerMove}
@@ -927,7 +969,7 @@ function App() {
               {rendered.error ? (
                 <div className="render-error">{rendered.error}</div>
               ) : (
-                <iframe className="preview-iframe" srcDoc={rendered.html} title="Rendered preview" />
+                <div className="preview-page-shell" dangerouslySetInnerHTML={{ __html: rendered.html }} />
               )}
             </div>
           )}
@@ -951,6 +993,34 @@ function App() {
           )}
         </section>
 
+        {mode === 'preview' && (
+          <aside className="object-inspector preview-pages-panel">
+            <section className="panel accordion-panel open">
+              <div className="static-panel-heading">
+                <span className="accordion-title">
+                  <FileText size={16} />
+                  <span>Pages</span>
+                </span>
+              </div>
+              <div className="accordion-content">
+                <label className="control-field">
+                  <span>Page</span>
+                  <input min="1" type="number" value={1} readOnly />
+                </label>
+                <button className="page-thumb active" onClick={() => printRef.current?.scrollIntoView({ block: 'center' })} type="button">
+                  <span className="page-thumb-preview">
+                    {rendered.error ? <span className="page-thumb-error">!</span> : <iframe srcDoc={rendered.html} title="Page 1 thumbnail" />}
+                  </span>
+                  <span className="page-thumb-meta">
+                    <strong>Page 1</strong>
+                  </span>
+                </button>
+              </div>
+            </section>
+          </aside>
+        )}
+
+        {mode === 'edit' && (
         <aside className="object-inspector">
           <AccordionPanel
             id="object"
@@ -1168,6 +1238,7 @@ function App() {
             </>
           )}
         </aside>
+        )}
       </main>
     </div>
   );
