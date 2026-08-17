@@ -26,7 +26,7 @@ import {
   Type as TypeIcon,
   Minus,
 } from 'lucide-react';
-import type { EditorMode, EditorObject, Frame, ObjectStyle, PageSize } from './editor/document/types';
+import type { EditorDocument, EditorMode, EditorObject, Frame, ObjectStyle, PageSize, Unit } from './editor/document/types';
 import { sampleDocument } from './editor/document/sampleDocument';
 import { generateTemplateHtml } from './editor/document/htmlGenerator';
 import { parseContext, getPathSuggestions } from './editor/template-language/context';
@@ -57,6 +57,56 @@ const pixelsPerUnit = {
   px: 1,
   mm: 3.7795275591,
   in: 96,
+};
+
+const rulerSize = 30;
+
+const niceCeil = (value: number) => {
+  const exponent = Math.floor(Math.log10(value));
+  const fraction = value / 10 ** exponent;
+  const niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+
+  return niceFraction * 10 ** exponent;
+};
+
+const formatRulerValue = (value: number) => {
+  if (Math.abs(value) < 0.0001) return '0';
+  if (Math.abs(value) >= 10) return String(Math.round(value));
+
+  return Number(value.toFixed(2)).toString();
+};
+
+const buildRulerTicks = (
+  axis: 'horizontal' | 'vertical',
+  viewport: { x: number; y: number; zoom: number },
+  unit: Unit,
+  stageSize: { width: number; height: number },
+) => {
+  const unitPx = pixelsPerUnit[unit] * viewport.zoom;
+  const origin = axis === 'horizontal' ? viewport.x : viewport.y;
+  const length = (axis === 'horizontal' ? stageSize.width : stageSize.height) - rulerSize;
+  if (length <= 0) return [];
+
+  const majorStep = niceCeil(140 / unitPx);
+  const minorStep = majorStep / 5;
+  const first = Math.floor((rulerSize - origin) / unitPx / minorStep) * minorStep;
+  const last = Math.ceil((length + rulerSize - origin) / unitPx / minorStep) * minorStep;
+  const ticks = [];
+
+  for (let value = first; value <= last; value += minorStep) {
+    const normalized = Number(value.toFixed(6));
+    const position = origin + normalized * unitPx - rulerSize;
+    const isMajor = Math.abs(normalized / majorStep - Math.round(normalized / majorStep)) < 0.0001;
+
+    ticks.push({
+      value: normalized,
+      position,
+      isMajor,
+      label: isMajor ? formatRulerValue(normalized) : '',
+    });
+  }
+
+  return ticks;
 };
 
 const flattenObjects = (objects: EditorObject[]): EditorObject[] =>
@@ -206,13 +256,15 @@ const objectStyle = (object: EditorObject, unit: string, selected: boolean) => (
 });
 
 function App() {
-  const [documentState, setDocumentState] = useState(sampleDocument);
+  const [documentState, setDocumentState] = useState<EditorDocument>(sampleDocument);
   const [mode, setMode] = useState<EditorMode>('edit');
   const [selectedId, setSelectedId] = useState('title');
   const [showGrid, setShowGrid] = useState(true);
   const [showRulers, setShowRulers] = useState(true);
   const [showBoxModel, setShowBoxModel] = useState(false);
   const [viewport, setViewport] = useState({ x: 260, y: 140, zoom: 1 });
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const [rulerPointer, setRulerPointer] = useState<{ x: number; y: number }>();
   const [isPanning, setIsPanning] = useState(false);
   const [draggingId, setDraggingId] = useState<string>();
   const [openPanels, setOpenPanels] = useState<Set<string>>(
@@ -225,6 +277,7 @@ function App() {
   const [contextError, setContextError] = useState<string>();
   const [formattedCode, setFormattedCode] = useState('');
   const [copiedCode, setCopiedCode] = useState(false);
+  const stageRef = useRef<HTMLElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const panStartRef = useRef({ pointerId: 0, x: 0, y: 0, viewportX: 0, viewportY: 0 });
   const objectDragRef = useRef({
@@ -254,6 +307,41 @@ function App() {
     () => allObjects.find((object) => object.id === selectedId),
     [allObjects, selectedId],
   );
+  const horizontalRulerTicks = useMemo(
+    () => buildRulerTicks('horizontal', viewport, documentState.unit, stageSize),
+    [documentState.unit, stageSize, viewport],
+  );
+  const verticalRulerTicks = useMemo(
+    () => buildRulerTicks('vertical', viewport, documentState.unit, stageSize),
+    [documentState.unit, stageSize, viewport],
+  );
+  const rulerPointerInBounds =
+    rulerPointer &&
+    rulerPointer.x >= rulerSize &&
+    rulerPointer.y >= rulerSize &&
+    rulerPointer.x <= stageSize.width &&
+    rulerPointer.y <= stageSize.height
+      ? rulerPointer
+      : undefined;
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const updateStageSize = () => {
+      setStageSize({
+        width: stage.clientWidth,
+        height: stage.clientHeight,
+      });
+    };
+
+    updateStageSize();
+
+    const observer = new ResizeObserver(updateStageSize);
+    observer.observe(stage);
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (mode === 'code') {
@@ -412,6 +500,20 @@ function App() {
   };
 
   const handleStagePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    if (mode === 'edit' && showRulers) {
+      const stageRect = event.currentTarget.getBoundingClientRect();
+      const nextPointer = {
+        x: event.clientX - stageRect.left,
+        y: event.clientY - stageRect.top,
+      };
+
+      setRulerPointer((current) =>
+        current && Math.abs(current.x - nextPointer.x) < 0.5 && Math.abs(current.y - nextPointer.y) < 0.5
+          ? current
+          : nextPointer,
+      );
+    }
+
     if (!isPanning || panStartRef.current.pointerId !== event.pointerId) return;
 
     const deltaX = event.clientX - panStartRef.current.x;
@@ -429,6 +531,10 @@ function App() {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     setIsPanning(false);
+  };
+
+  const clearRulerPointer = () => {
+    setRulerPointer(undefined);
   };
 
   const updatePageSize = (key: 'width' | 'height', value: string) => {
@@ -920,62 +1026,95 @@ function App() {
           className={mode === 'edit' && isPanning ? 'stage panning' : `stage ${mode}`}
           onPointerCancel={stopPanning}
           onPointerDown={handleStagePointerDown}
+          onPointerLeave={clearRulerPointer}
           onPointerMove={handleStagePointerMove}
           onPointerUp={stopPanning}
+          ref={stageRef}
         >
           {mode === 'edit' && (
-            <div
-              className="canvas-wrap"
-              style={{
-                transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-              }}
-            >
+            <>
               {showRulers && (
-                <>
-                  <div className="ruler horizontal">0&nbsp;&nbsp;&nbsp;&nbsp;50&nbsp;&nbsp;&nbsp;&nbsp;100&nbsp;&nbsp;&nbsp;&nbsp;150&nbsp;&nbsp;&nbsp;&nbsp;210 mm</div>
-                  <div className="ruler vertical">0 50 100 150 200 250 297 mm</div>
-                </>
+                <div className="canvas-rulers" aria-hidden="true">
+                  <div className="ruler-corner" />
+                  <div className="ruler horizontal">
+                    {horizontalRulerTicks.map((tick) => (
+                      <span
+                        className={tick.isMajor ? 'ruler-tick major' : 'ruler-tick'}
+                        key={`x-${tick.value}`}
+                        style={{ left: tick.position }}
+                      >
+                        {tick.label && <span className="ruler-label">{tick.label}</span>}
+                      </span>
+                    ))}
+                    {rulerPointerInBounds && (
+                      <span className="ruler-follow-tick horizontal" style={{ left: rulerPointerInBounds.x - rulerSize }} />
+                    )}
+                    <span className="ruler-unit">{documentState.unit}</span>
+                  </div>
+                  <div className="ruler vertical">
+                    {verticalRulerTicks.map((tick) => (
+                      <span
+                        className={tick.isMajor ? 'ruler-tick major' : 'ruler-tick'}
+                        key={`y-${tick.value}`}
+                        style={{ top: tick.position }}
+                      >
+                        {tick.label && <span className="ruler-label">{tick.label}</span>}
+                      </span>
+                    ))}
+                    {rulerPointerInBounds && (
+                      <span className="ruler-follow-tick vertical" style={{ top: rulerPointerInBounds.y - rulerSize }} />
+                    )}
+                    <span className="ruler-unit">{documentState.unit}</span>
+                  </div>
+                </div>
               )}
               <div
-                className={showGrid ? 'page-canvas show-grid' : 'page-canvas'}
-                onClick={() => setSelectedId('')}
+                className="canvas-wrap"
                 style={{
-                  width: `${documentState.page.size.width}${documentState.unit}`,
-                  height: `${documentState.page.size.height}${documentState.unit}`,
-                  backgroundColor: documentState.page.background,
+                  transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
                 }}
               >
-                {showBoxModel && (
-                  <>
-                    {documentState.page.margin.top > 0 && (
-                      <span
-                        className="margin-overlay top"
-                        style={{ height: `${documentState.page.margin.top}${documentState.unit}` }}
-                      />
-                    )}
-                    {documentState.page.margin.right > 0 && (
-                      <span
-                        className="margin-overlay right"
-                        style={{ width: `${documentState.page.margin.right}${documentState.unit}` }}
-                      />
-                    )}
-                    {documentState.page.margin.bottom > 0 && (
-                      <span
-                        className="margin-overlay bottom"
-                        style={{ height: `${documentState.page.margin.bottom}${documentState.unit}` }}
-                      />
-                    )}
-                    {documentState.page.margin.left > 0 && (
-                      <span
-                        className="margin-overlay left"
-                        style={{ width: `${documentState.page.margin.left}${documentState.unit}` }}
-                      />
-                    )}
-                  </>
-                )}
-                {documentState.objects.map((object) => renderCanvasObject(object))}
+                <div
+                  className={showGrid ? 'page-canvas show-grid' : 'page-canvas'}
+                  onClick={() => setSelectedId('')}
+                  style={{
+                    width: `${documentState.page.size.width}${documentState.unit}`,
+                    height: `${documentState.page.size.height}${documentState.unit}`,
+                    backgroundColor: documentState.page.background,
+                  }}
+                >
+                  {showBoxModel && (
+                    <>
+                      {documentState.page.margin.top > 0 && (
+                        <span
+                          className="margin-overlay top"
+                          style={{ height: `${documentState.page.margin.top}${documentState.unit}` }}
+                        />
+                      )}
+                      {documentState.page.margin.right > 0 && (
+                        <span
+                          className="margin-overlay right"
+                          style={{ width: `${documentState.page.margin.right}${documentState.unit}` }}
+                        />
+                      )}
+                      {documentState.page.margin.bottom > 0 && (
+                        <span
+                          className="margin-overlay bottom"
+                          style={{ height: `${documentState.page.margin.bottom}${documentState.unit}` }}
+                        />
+                      )}
+                      {documentState.page.margin.left > 0 && (
+                        <span
+                          className="margin-overlay left"
+                          style={{ width: `${documentState.page.margin.left}${documentState.unit}` }}
+                        />
+                      )}
+                    </>
+                  )}
+                  {documentState.objects.map((object) => renderCanvasObject(object))}
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           {mode === 'preview' && (

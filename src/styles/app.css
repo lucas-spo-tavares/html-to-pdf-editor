@@ -243,34 +243,135 @@
 .canvas-wrap {
   position: relative;
   width: max-content;
-  padding: 34px 0 0 34px;
   transform-origin: 0 0;
   will-change: transform;
 }
 
+.canvas-rulers {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.ruler-corner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 30px;
+  border-right: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  background: #eef2f6;
+}
+
 .ruler {
   position: absolute;
+  overflow: hidden;
+  background: #eef2f6;
   color: #667085;
   font-size: 11px;
-  line-height: 24px;
+  line-height: 1;
   user-select: none;
 }
 
 .ruler.horizontal {
   top: 0;
-  left: 34px;
+  left: 30px;
   right: 0;
-  height: 24px;
+  height: 30px;
   border-bottom: 1px solid #cbd5e1;
 }
 
 .ruler.vertical {
-  top: 34px;
+  top: 30px;
   bottom: 0;
   left: 0;
-  width: 24px;
-  writing-mode: vertical-rl;
+  width: 30px;
   border-right: 1px solid #cbd5e1;
+}
+
+.ruler-tick {
+  position: absolute;
+  background: #667085;
+}
+
+.ruler.horizontal .ruler-tick {
+  bottom: 0;
+  width: 1px;
+  height: 7px;
+}
+
+.ruler.horizontal .ruler-tick.major {
+  height: 12px;
+}
+
+.ruler.vertical .ruler-tick {
+  right: 0;
+  width: 7px;
+  height: 1px;
+}
+
+.ruler.vertical .ruler-tick.major {
+  width: 12px;
+}
+
+.ruler-follow-tick {
+  position: absolute;
+  z-index: 2;
+  background: #1570ef;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 75%);
+}
+
+.ruler-follow-tick.horizontal {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-1px);
+}
+
+.ruler-follow-tick.vertical {
+  right: 0;
+  left: 0;
+  height: 2px;
+  transform: translateY(-1px);
+}
+
+.ruler-label {
+  position: absolute;
+  color: #475467;
+  white-space: nowrap;
+}
+
+.ruler.horizontal .ruler-label {
+  top: 0;
+  left: 4px;
+}
+
+.ruler.vertical .ruler-label {
+  top: 4px;
+  right: 15px;
+  transform: rotate(-90deg);
+  transform-origin: 100% 0;
+}
+
+.ruler-unit {
+  position: absolute;
+  color: #667085;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.ruler.horizontal .ruler-unit {
+  top: 5px;
+  right: 8px;
+}
+
+.ruler.vertical .ruler-unit {
+  right: 14px;
+  bottom: 8px;
+  transform: rotate(-90deg);
+  transform-origin: 100% 0;
 }
 
 .page-canvas {
