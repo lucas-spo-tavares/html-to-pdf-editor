@@ -13,6 +13,7 @@ type ObjectDragState = {
 type EditorCanvasObjectProps = {
   object: EditorObject;
   unit: Unit;
+  zoom: number;
   selectedId: string;
   draggingId?: string;
   showBoxModel: boolean;
@@ -22,18 +23,20 @@ type EditorCanvasObjectProps = {
   nested?: boolean;
 };
 
-const objectStyle = (object: EditorObject, unit: Unit, selected: boolean): CSSProperties => ({
-  left: `${object.frame.x}${unit}`,
-  top: `${object.frame.y}${unit}`,
-  width: `${object.frame.width}${unit}`,
-  height: `${object.frame.height}${unit}`,
+const scaledUnit = (value: number, unit: Unit, zoom: number) => `calc(${value}${unit} * ${zoom})`;
+
+const objectStyle = (object: EditorObject, unit: Unit, zoom: number, selected: boolean): CSSProperties => ({
+  left: scaledUnit(object.frame.x, unit, zoom),
+  top: scaledUnit(object.frame.y, unit, zoom),
+  width: scaledUnit(object.frame.width, unit, zoom),
+  height: scaledUnit(object.frame.height, unit, zoom),
   background: object.style.background,
   color: object.style.color,
   border: object.style.border,
   outline: selected ? '1.5px solid #1570ef' : undefined,
-  borderRadius: object.style.borderRadius === undefined ? undefined : `${object.style.borderRadius}${unit}`,
-  padding: object.style.padding === undefined ? undefined : `${object.style.padding}${unit}`,
-  fontSize: object.style.fontSize === undefined ? undefined : `${object.style.fontSize}pt`,
+  borderRadius: object.style.borderRadius === undefined ? undefined : scaledUnit(object.style.borderRadius, unit, zoom),
+  padding: object.style.padding === undefined ? undefined : scaledUnit(object.style.padding, unit, zoom),
+  fontSize: object.style.fontSize === undefined ? undefined : `calc(${object.style.fontSize}pt * ${zoom})`,
   fontWeight: object.style.fontWeight,
   lineHeight: object.style.lineHeight,
   textAlign: object.style.textAlign,
@@ -41,12 +44,13 @@ const objectStyle = (object: EditorObject, unit: Unit, selected: boolean): CSSPr
   flexDirection: object.style.flexDirection,
   alignItems: object.style.alignItems,
   justifyContent: object.style.justifyContent,
-  gap: object.style.gap === undefined ? undefined : `${object.style.gap}${unit}`,
+  gap: object.style.gap === undefined ? undefined : scaledUnit(object.style.gap, unit, zoom),
 });
 
 export function EditorCanvasObject({
   object,
   unit,
+  zoom,
   selectedId,
   draggingId,
   showBoxModel,
@@ -74,6 +78,7 @@ export function EditorCanvasObject({
           selectedId={selectedId}
           showBoxModel={showBoxModel}
           unit={unit}
+          zoom={zoom}
         />
       ))
     );
@@ -111,7 +116,7 @@ export function EditorCanvasObject({
         }
       }}
       role="button"
-      style={objectStyle(object, unit, selected)}
+      style={objectStyle(object, unit, zoom, selected)}
       tabIndex={0}
     >
       {showBoxModel && padding > 0 && (
@@ -119,10 +124,10 @@ export function EditorCanvasObject({
           className="padding-overlay"
           style={{
             backgroundImage: `
-              linear-gradient(to bottom, rgb(111 207 151 / 35%) 0 ${padding}${unit}, transparent ${padding}${unit}),
-              linear-gradient(to top, rgb(111 207 151 / 35%) 0 ${padding}${unit}, transparent ${padding}${unit}),
-              linear-gradient(to right, rgb(111 207 151 / 35%) 0 ${padding}${unit}, transparent ${padding}${unit}),
-              linear-gradient(to left, rgb(111 207 151 / 35%) 0 ${padding}${unit}, transparent ${padding}${unit})
+              linear-gradient(to bottom, rgb(111 207 151 / 35%) 0 ${scaledUnit(padding, unit, zoom)}, transparent ${scaledUnit(padding, unit, zoom)}),
+              linear-gradient(to top, rgb(111 207 151 / 35%) 0 ${scaledUnit(padding, unit, zoom)}, transparent ${scaledUnit(padding, unit, zoom)}),
+              linear-gradient(to right, rgb(111 207 151 / 35%) 0 ${scaledUnit(padding, unit, zoom)}, transparent ${scaledUnit(padding, unit, zoom)}),
+              linear-gradient(to left, rgb(111 207 151 / 35%) 0 ${scaledUnit(padding, unit, zoom)}, transparent ${scaledUnit(padding, unit, zoom)})
             `,
           }}
         />

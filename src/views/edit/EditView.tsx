@@ -60,6 +60,10 @@ const pixelsPerUnit = {
 };
 
 const rulerSize = 30;
+const minZoom = 0.35;
+const maxZoom = 2;
+
+const scaledUnit = (value: number, unit: Unit, zoom: number) => `calc(${value}${unit} * ${zoom})`;
 
 const buildRulerTicks = (
   axis: 'horizontal' | 'vertical',
@@ -255,11 +259,27 @@ export function EditView({
     [lastValidContext],
   );
 
+  const clampZoom = (zoom: number) => Math.min(maxZoom, Math.max(minZoom, zoom));
+
   const setZoom = (zoom: number) => {
     setViewport((current) => ({
       ...current,
-      zoom: Math.min(2, Math.max(0.35, zoom)),
+      zoom: clampZoom(zoom),
     }));
+  };
+
+  const setZoomFromPoint = (zoom: number, point: { x: number; y: number }) => {
+    setViewport((current) => {
+      const nextZoom = clampZoom(zoom);
+      const scale = nextZoom / current.zoom;
+
+      return {
+        ...current,
+        x: point.x - (point.x - current.x) * scale,
+        y: point.y - (point.y - current.y) * scale,
+        zoom: nextZoom,
+      };
+    });
   };
 
   const centerCanvas = () => {
@@ -309,6 +329,20 @@ export function EditView({
       x: panStartRef.current.viewportX + deltaX,
       y: panStartRef.current.viewportY + deltaY,
     }));
+  };
+
+  const handleStageWheel = (event: React.WheelEvent<HTMLElement>) => {
+    event.preventDefault();
+
+    const stageRect = event.currentTarget.getBoundingClientRect();
+    const pointer = {
+      x: event.clientX - stageRect.left,
+      y: event.clientY - stageRect.top,
+    };
+    const direction = event.deltaY > 0 ? -1 : 1;
+    const nextZoom = viewport.zoom + direction * 0.08;
+
+    setZoomFromPoint(nextZoom, pointer);
   };
 
   const stopPanning = (event: React.PointerEvent<HTMLElement>) => {
@@ -639,6 +673,7 @@ export function EditView({
           onPointerLeave={clearRulerPointer}
           onPointerMove={handleStagePointerMove}
           onPointerUp={stopPanning}
+          onWheel={handleStageWheel}
           ref={stageRef}
         >
           {showRulers && (
@@ -650,29 +685,35 @@ export function EditView({
               verticalTicks={verticalRulerTicks}
             />
           )}
-          <div className="canvas-wrap" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}>
+          <div
+            className="canvas-wrap"
+            style={{
+              transform: `translate(${viewport.x}px, ${viewport.y}px)`,
+            }}
+          >
             <div
               className={showGrid ? 'page-canvas show-grid' : 'page-canvas'}
               onClick={() => setSelectedId('')}
               style={{
-                width: `${documentState.page.size.width}${documentState.unit}`,
-                height: `${documentState.page.size.height}${documentState.unit}`,
+                width: scaledUnit(documentState.page.size.width, documentState.unit, viewport.zoom),
+                height: scaledUnit(documentState.page.size.height, documentState.unit, viewport.zoom),
                 backgroundColor: documentState.page.background,
+                backgroundSize: `calc(10mm * ${viewport.zoom}) calc(10mm * ${viewport.zoom})`,
               }}
             >
               {showBoxModel && (
                 <>
                   {documentState.page.margin.top > 0 && (
-                    <span className="margin-overlay top" style={{ height: `${documentState.page.margin.top}${documentState.unit}` }} />
+                    <span className="margin-overlay top" style={{ height: scaledUnit(documentState.page.margin.top, documentState.unit, viewport.zoom) }} />
                   )}
                   {documentState.page.margin.right > 0 && (
-                    <span className="margin-overlay right" style={{ width: `${documentState.page.margin.right}${documentState.unit}` }} />
+                    <span className="margin-overlay right" style={{ width: scaledUnit(documentState.page.margin.right, documentState.unit, viewport.zoom) }} />
                   )}
                   {documentState.page.margin.bottom > 0 && (
-                    <span className="margin-overlay bottom" style={{ height: `${documentState.page.margin.bottom}${documentState.unit}` }} />
+                    <span className="margin-overlay bottom" style={{ height: scaledUnit(documentState.page.margin.bottom, documentState.unit, viewport.zoom) }} />
                   )}
                   {documentState.page.margin.left > 0 && (
-                    <span className="margin-overlay left" style={{ width: `${documentState.page.margin.left}${documentState.unit}` }} />
+                    <span className="margin-overlay left" style={{ width: scaledUnit(documentState.page.margin.left, documentState.unit, viewport.zoom) }} />
                   )}
                 </>
               )}
@@ -687,6 +728,7 @@ export function EditView({
                   selectedId={selectedId}
                   showBoxModel={showBoxModel}
                   unit={documentState.unit}
+                  zoom={viewport.zoom}
                 />
               ))}
             </div>
