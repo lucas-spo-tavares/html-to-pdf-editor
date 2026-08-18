@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { autocompletion, type CompletionContext } from '@codemirror/autocomplete';
 import CodeMirror from '@uiw/react-codemirror';
-import { json as jsonLanguage } from '@codemirror/lang-json';
 import { EditorView } from '@codemirror/view';
 import {
   Braces,
@@ -30,7 +28,8 @@ import { EditorRuler } from '../../components/organisms/editor-ruler/editor-rule
 import { SidePanel } from '../../components/organisms/side-panel/side-panel';
 import type { EditorDocument, EditorObject, Frame, ObjectStyle, PageSize, Unit } from '../../editor/document/types';
 import { sampleDocument } from '../../editor/document/sampleDocument';
-import { getPathSuggestions } from '../../editor/template-language/context';
+import { jsonEditorExtensions } from '../../plugin/codemirror/extensions/json-editor/json-editor';
+import { templateAutocomplete } from '../../plugin/codemirror/extensions/template-autocomplete/template-autocomplete';
 
 type EditViewProps = {
   contextError?: string;
@@ -97,31 +96,6 @@ const buildRulerTicks = (
 
 const flattenObjects = (objects: EditorObject[]): EditorObject[] =>
   objects.appFlatTree((object) => object.children);
-
-const getTypingExpression = (value: string, caret: number) => {
-  const beforeCaret = value.slice(0, caret);
-  const openIndex = beforeCaret.lastIndexOf('{{');
-  const closeIndex = beforeCaret.lastIndexOf('}}');
-
-  if (openIndex === -1 || closeIndex > openIndex) {
-    return undefined;
-  }
-
-  const expressionStart = openIndex + 2;
-  const rawExpression = value.slice(expressionStart, caret);
-  const leadingWhitespace = rawExpression.match(/^\s*/)?.[0].length ?? 0;
-  const expression = rawExpression.slice(leadingWhitespace);
-
-  if (!/^[a-zA-Z0-9_.]*$/.test(expression)) {
-    return undefined;
-  }
-
-  return {
-    path: expression,
-    start: expressionStart + leadingWhitespace,
-    end: caret,
-  };
-};
 
 const updateObjectContent = (objects: EditorObject[], id: string, content: string): EditorObject[] =>
   updateObject(objects, id, (object) => ({ ...object, content }));
@@ -275,32 +249,9 @@ export function EditView({
     };
   }, [documentState.unit, draggingId, setDocumentState, viewport.zoom]);
 
-  const templateAutocomplete = useMemo(
-    () =>
-      autocompletion({
-        override: [
-          (context: CompletionContext) => {
-            const expression = getTypingExpression(context.state.doc.toString(), context.pos);
-            if (!expression) return null;
-
-            const path = expression.path;
-            const options = path.includes('.')
-              ? getPathSuggestions(lastValidContext, path.slice(0, path.lastIndexOf('.')))
-                  .filter((key) => key.startsWith(path.slice(path.lastIndexOf('.') + 1)))
-                  .map((key) => ({ label: key, type: 'property' }))
-              : Object.keys(lastValidContext)
-                  .filter((key) => key.startsWith(path))
-                  .map((key) => ({ label: key, type: 'variable' }));
-
-            if (options.length === 0) return null;
-
-            return {
-              from: expression.path.includes('.') ? expression.start + expression.path.lastIndexOf('.') + 1 : expression.start,
-              options,
-            };
-          },
-        ],
-      }),
+  const contextEditorExtensions = useMemo(() => jsonEditorExtensions(), []);
+  const templateEditorExtensions = useMemo(
+    () => [templateAutocomplete(lastValidContext), EditorView.lineWrapping],
     [lastValidContext],
   );
 
@@ -633,7 +584,7 @@ export function EditView({
                   highlightActiveLine: true,
                   lineNumbers: true,
                 }}
-                extensions={[jsonLanguage(), EditorView.lineWrapping]}
+                extensions={contextEditorExtensions}
                 height="250px"
                 onChange={onContextTextChange}
                 value={documentState.contextText}
@@ -778,7 +729,7 @@ export function EditView({
                         highlightActiveLine: true,
                         lineNumbers: false,
                       }}
-                      extensions={[templateAutocomplete, EditorView.lineWrapping]}
+                      extensions={templateEditorExtensions}
                       height="112px"
                       onChange={(value) => updateSelectedObjectContent(selectedObject.id, value)}
                       value={selectedObject.content ?? ''}

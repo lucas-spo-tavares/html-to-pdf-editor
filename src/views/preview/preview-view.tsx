@@ -1,13 +1,12 @@
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
-import { json as jsonLanguage } from '@codemirror/lang-json';
-import { EditorView } from '@codemirror/view';
 import { Braces, FileText } from 'lucide-react';
 import { Button } from '../../components/atoms/button/button';
 import { NumberField } from '../../components/atoms/number-field/number-field';
 import { StaticAccordionPanel } from '../../components/atoms/static-accordion-panel/static-accordion-panel';
 import { SidePanel } from '../../components/organisms/side-panel/side-panel';
 import type { EditorDocument } from '../../editor/document/types';
+import { jsonEditorExtensions } from '../../plugin/codemirror/extensions/json-editor/json-editor';
 
 type RenderedTemplate = {
   html: string;
@@ -28,6 +27,7 @@ export function PreviewView({
   onContextTextChange,
 }: PreviewViewProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const contextEditorExtensions = useMemo(() => jsonEditorExtensions(), []);
 
   return (
     <main className="workspace preview">
@@ -40,7 +40,7 @@ export function PreviewView({
                 highlightActiveLine: true,
                 lineNumbers: true,
               }}
-              extensions={[jsonLanguage(), EditorView.lineWrapping]}
+              extensions={contextEditorExtensions}
               height="calc(100vh - 112px)"
               onChange={onContextTextChange}
               value={documentState.contextText}
