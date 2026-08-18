@@ -291,8 +291,10 @@ export function EditView({
   };
 
   const handleStagePointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    if (event.button !== 0 || event.target !== event.currentTarget) return;
+    if (event.button !== 1) return;
 
+    event.preventDefault();
+    event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     panStartRef.current = {
       pointerId: event.pointerId,
@@ -345,10 +347,17 @@ export function EditView({
     setZoomFromPoint(nextZoom, pointer);
   };
 
+  const handleStageAuxClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (event.button !== 1) return;
+
+    event.preventDefault();
+  };
+
   const stopPanning = (event: React.PointerEvent<HTMLElement>) => {
     if (panStartRef.current.pointerId === event.pointerId && event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    panStartRef.current.pointerId = 0;
     setIsPanning(false);
   };
 
@@ -668,6 +677,7 @@ export function EditView({
 
         <section
           className={isPanning ? 'stage panning' : 'stage edit'}
+          onAuxClick={handleStageAuxClick}
           onPointerCancel={stopPanning}
           onPointerDown={handleStagePointerDown}
           onPointerLeave={clearRulerPointer}

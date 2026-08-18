@@ -226,7 +226,7 @@
   background:
     radial-gradient(circle at 1px 1px, rgb(16 24 40 / 12%) 1px, transparent 0) 0 0 / 20px 20px,
     #eef2f6;
-  cursor: grab;
+  cursor: default;
   touch-action: none;
   user-select: none;
 }
