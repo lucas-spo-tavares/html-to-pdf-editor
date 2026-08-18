@@ -232,6 +232,7 @@ export function EditView({
     () => allObjects.find((object) => object.id === selectedId),
     [allObjects, selectedId],
   );
+  const selectedFrameFields: Array<keyof Frame> = selectedObject?.type === 'text' ? ['width', 'height'] : ['x', 'y', 'width', 'height'];
   const selectedCanRepeat = selectedObject?.type === 'container';
   const selectedLoop = selectedObject?.template?.forEach;
   const arrayPathOptions = useMemo(() => getArrayPaths(lastValidContext), [lastValidContext]);
@@ -942,7 +943,7 @@ export function EditView({
                 )}
 
                 <div className="control-grid two">
-                  {(['x', 'y', 'width', 'height'] as const).map((key) => (
+                  {selectedFrameFields.map((key) => (
                     <NumberField
                       disabled={selectedObject.type === 'container' && selectedObject.position === 'normal' && (key === 'x' || key === 'y')}
                       key={key}

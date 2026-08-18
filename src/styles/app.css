@@ -486,6 +486,31 @@
   border: 1px dashed rgb(47 133 90 / 60%);
 }
 
+.gap-overlay {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgb(21 112 239 / 28%) 0,
+      rgb(21 112 239 / 28%) 4px,
+      rgb(21 112 239 / 12%) 4px,
+      rgb(21 112 239 / 12%) 8px
+    );
+  outline: 1px dashed rgb(21 112 239 / 48%);
+}
+
+.gap-overlay.column {
+  right: 0;
+  left: 0;
+}
+
+.gap-overlay.row {
+  top: 0;
+  bottom: 0;
+}
+
 .canvas-child-object {
   position: relative;
   left: auto !important;

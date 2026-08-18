@@ -25,6 +25,9 @@ type EditorCanvasObjectProps = {
 
 const scaledUnit = (value: number, unit: Unit, zoom: number) => `calc(${value}${unit} * ${zoom})`;
 
+const scaledOffset = (value: number, unit: Unit, zoom: number, padding = 0) =>
+  padding > 0 ? `calc(${scaledUnit(padding, unit, zoom)} + ${scaledUnit(value, unit, zoom)})` : scaledUnit(value, unit, zoom);
+
 const objectStyle = (object: EditorObject, unit: Unit, zoom: number, selected: boolean, flowPosition: boolean): CSSProperties => {
   const normal = flowPosition || object.position === 'normal';
 
@@ -69,6 +72,9 @@ export function EditorCanvasObject({
   const dragging = draggingId === object.id;
   const flowPosition = nested || object.position === 'normal';
   const padding = object.style.padding ?? 0;
+  const gap = object.style.gap ?? 0;
+  const flexDirection = object.style.flexDirection ?? 'row';
+  const canShowGap = showBoxModel && object.style.display === 'flex' && gap > 0 && Boolean(object.children?.length && object.children.length > 1);
   const content =
     object.type === 'text' ? (
       <span>{object.content ?? ''}</span>
@@ -98,6 +104,29 @@ export function EditorCanvasObject({
   ]
     .filter(Boolean)
     .join(' ');
+  const gapOverlays = object.children?.slice(0, -1).map((child, index) => {
+    const offset = object.children
+      ?.slice(0, index + 1)
+      .reduce((total, current) => total + (flexDirection === 'column' ? current.frame.height : current.frame.width), 0);
+
+    return (
+      <span
+        className={flexDirection === 'column' ? 'gap-overlay column' : 'gap-overlay row'}
+        key={`gap-${child.id}`}
+        style={
+          flexDirection === 'column'
+            ? {
+                top: scaledOffset((offset ?? 0) + gap * index, unit, zoom, padding),
+                height: scaledUnit(gap, unit, zoom),
+              }
+            : {
+                left: scaledOffset((offset ?? 0) + gap * index, unit, zoom, padding),
+                width: scaledUnit(gap, unit, zoom),
+              }
+        }
+      />
+    );
+  });
 
   return (
     <div
@@ -151,6 +180,7 @@ export function EditorCanvasObject({
           }}
         />
       )}
+      {canShowGap && gapOverlays}
       {content}
       {selected && <span className="selection-label">{object.type}</span>}
     </div>
