@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Code2, Download, Eye, MousePointer2 } from 'lucide-react';
-import { Button } from '@/components/atoms/button/button';
+import { Button } from '@/components/atoms/button/Button';
 import type { EditorDocument, EditorMode } from '@/editor/document/types';
 import { generateTemplateHtml } from '@/editor/document/htmlGenerator';
 import { sampleDocument } from '@/editor/document/sampleDocument';
 import { parseContext } from '@/editor/template-language/context';
 import { renderTemplate } from '@/editor/template-language/renderTemplate';
-import { CodeView } from '@/views/code/code-view';
-import { EditView } from '@/views/edit/edit-view';
-import { PreviewView } from '@/views/preview/preview-view';
+import { CodeView } from '@/views/code/CodeView';
+import { EditView } from '@/views/edit/EditView';
+import { PreviewView } from '@/views/preview/PreviewView';
 
 const modeItems: Array<{ id: EditorMode; label: string; icon: typeof MousePointer2 }> = [
   { id: 'edit', label: 'Edicao', icon: MousePointer2 },

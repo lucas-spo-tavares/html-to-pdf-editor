@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { Button } from '@/components/atoms/button/button';
+import { Button } from '@/components/atoms/button/Button';
 
 type AccordionPanelProps = {
   id: string;
