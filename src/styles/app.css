@@ -16,7 +16,8 @@
 .canvas-toggles,
 .canvas-box-toggle,
 .canvas-zoom,
-.floating-export {
+.floating-export,
+.floating-button {
   position: fixed;
   z-index: 30;
   box-shadow: 0 12px 30px rgb(16 24 40 / 14%);
@@ -150,7 +151,9 @@
 
 .mode-tab,
 .icon-button,
-.primary-button {
+.primary-button,
+.dark-button,
+.success-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -187,6 +190,20 @@
   padding: 0 13px;
   border-color: #1570ef;
   background: #1570ef;
+  color: #ffffff;
+  font-weight: 650;
+}
+
+.dark-button {
+  border-color: #475467;
+  background: #182230;
+  color: #f9fafb;
+  font-weight: 650;
+}
+
+.success-button {
+  border-color: #12b76a;
+  background: #027a48;
   color: #ffffff;
   font-weight: 650;
 }
