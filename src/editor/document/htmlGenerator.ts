@@ -10,6 +10,19 @@ const escapeHtml = (value: string) =>
 
 const unitValue = (value: number, unit: Unit) => `${value}${unit}`;
 
+const contentAreaStyle = (document: EditorDocument) => {
+  const { margin, size } = document.page;
+  const { unit } = document;
+
+  return [
+    'position: absolute;',
+    `left: ${unitValue(margin.left, unit)};`,
+    `top: ${unitValue(margin.top, unit)};`,
+    `width: calc(${unitValue(size.width, unit)} - ${unitValue(margin.left + margin.right, unit)});`,
+    `min-height: calc(${unitValue(size.height, unit)} - ${unitValue(margin.top + margin.bottom, unit)});`,
+  ].join(' ');
+};
+
 const styleToCss = (style: ObjectStyle, unit: Unit) => {
   const rules: string[] = [];
 
@@ -46,7 +59,8 @@ const styleToCss = (style: ObjectStyle, unit: Unit) => {
 };
 
 const renderObject = (object: EditorObject, unit: Unit, absolute = true): string => {
-  const frameCss = absolute
+  const isAbsolute = absolute && object.position !== 'normal';
+  const frameCss = isAbsolute
     ? [
         'position: absolute;',
         `left: ${unitValue(object.frame.x, unit)};`,
@@ -54,12 +68,22 @@ const renderObject = (object: EditorObject, unit: Unit, absolute = true): string
         `width: ${unitValue(object.frame.width, unit)};`,
         `height: ${unitValue(object.frame.height, unit)};`,
       ].join(' ')
-    : [`width: ${unitValue(object.frame.width, unit)};`, `min-height: ${unitValue(object.frame.height, unit)};`].join(' ');
+    : [
+        object.type === 'container' ? 'position: relative;' : undefined,
+        `width: ${unitValue(object.frame.width, unit)};`,
+        `min-height: ${unitValue(object.frame.height, unit)};`,
+      ]
+        .filter(Boolean)
+        .join(' ');
 
   const className = `editor-object editor-object-${object.type}`;
   const css = `${frameCss} ${styleToCss(object.style, unit)}`.trim();
   const children = object.children?.map((child) => renderObject(child, unit, object.style.display !== 'flex')).join('\n') ?? '';
-  const content = object.type === 'text' ? escapeHtml(object.content ?? '') : children;
+  let content = object.type === 'text' ? escapeHtml(object.content ?? '') : children;
+
+  if (object.type === 'container' && object.template?.forEach) {
+    content = `{% for ${object.template.forEach.item} in ${object.template.forEach.collection} %}\n${content}\n{% endfor %}`;
+  }
 
   let html = `<div class="${className}" data-object-id="${object.id}" style="${css}">${content}</div>`;
 
@@ -67,7 +91,7 @@ const renderObject = (object: EditorObject, unit: Unit, absolute = true): string
     html = `{% if ${object.template.if} %}\n${html}\n{% endif %}`;
   }
 
-  if (object.template?.forEach) {
+  if (object.type !== 'container' && object.template?.forEach) {
     html = `{% for ${object.template.forEach.item} in ${object.template.forEach.collection} %}\n${html}\n{% endfor %}`;
   }
 
@@ -77,7 +101,14 @@ const renderObject = (object: EditorObject, unit: Unit, absolute = true): string
 export const generateTemplateHtml = (document: EditorDocument) => {
   const { unit } = document;
   const page = document.page.size;
-  const objects = document.objects.map((object) => renderObject(object, unit)).join('\n');
+  const absoluteObjects = document.objects
+    .filter((object) => object.position !== 'normal')
+    .map((object) => renderObject(object, unit))
+    .join('\n');
+  const normalObjects = document.objects
+    .filter((object) => object.position === 'normal')
+    .map((object) => renderObject(object, unit))
+    .join('\n');
 
   return `<!doctype html>
 <html>
@@ -106,6 +137,14 @@ export const generateTemplateHtml = (document: EditorDocument) => {
     box-sizing: border-box;
   }
 
+  .editor-object-container {
+    overflow: hidden;
+  }
+
+  .pdf-content-area {
+    box-sizing: border-box;
+  }
+
   @media print {
     html,
     body {
@@ -126,7 +165,10 @@ export const generateTemplateHtml = (document: EditorDocument) => {
 </head>
 <body>
 <main class="pdf-page">
-${objects}
+${absoluteObjects}
+<div class="pdf-content-area" style="${contentAreaStyle(document)}">
+${normalObjects}
+</div>
 </main>
 </body>
 </html>`;

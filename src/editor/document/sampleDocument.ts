@@ -106,7 +106,7 @@ export const sampleDocument: EditorDocument = {
     {
       id: 'items',
       name: 'Items loop',
-      type: 'group',
+      type: 'container',
       frame: { x: 16, y: 102, width: 178, height: 72 },
       style: {
         display: 'flex',

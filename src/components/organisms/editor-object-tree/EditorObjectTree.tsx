@@ -1,4 +1,4 @@
-import { Box, ChevronDown, ChevronRight, Layers, Type as TypeIcon } from 'lucide-react';
+import { Box, ChevronDown, ChevronRight, Type as TypeIcon } from 'lucide-react';
 import { Button } from '@/components/atoms/button/Button';
 import type { EditorObject } from '@/editor/document/types';
 
@@ -22,7 +22,6 @@ const getTextTitle = (object: EditorObject) => {
 
 const getTreeIcon = (object: EditorObject) => {
   if (object.type === 'text') return <TypeIcon size={14} />;
-  if (object.type === 'group') return <Layers size={14} />;
   return <Box size={14} />;
 };
 

@@ -57,7 +57,8 @@ export type TemplateBehavior = {
 export type EditorObject = {
   id: string;
   name: string;
-  type: 'container' | 'text' | 'image' | 'group';
+  type: 'container' | 'text' | 'image';
+  position?: 'absolute' | 'normal';
   frame: Frame;
   style: ObjectStyle;
   content?: string;

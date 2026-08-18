@@ -13,6 +13,7 @@ import {
   Minus,
   Palette,
   Plus,
+  Repeat2,
   Ruler,
   SlidersHorizontal,
   Type as TypeIcon,
@@ -21,6 +22,8 @@ import { AccordionPanel } from '@/components/atoms/accordion-panel/AccordionPane
 import { Button } from '@/components/atoms/button/Button';
 import { NumberField } from '@/components/atoms/number-field/NumberField';
 import { SelectField } from '@/components/atoms/select-field/SelectField';
+import { TextField } from '@/components/atoms/text-field/TextField';
+import { ToggleField } from '@/components/atoms/toggle-field/ToggleField';
 import { BorderControl } from '@/components/molecules/border-control/BorderControl';
 import { EditorCanvasObject } from '@/components/organisms/editor-canvas-object/EditorCanvasObject';
 import { EditorObjectTree } from '@/components/organisms/editor-object-tree/EditorObjectTree';
@@ -28,8 +31,11 @@ import { EditorRuler } from '@/components/organisms/editor-ruler/EditorRuler';
 import { SidePanel } from '@/components/organisms/side-panel/SidePanel';
 import { sampleDocument } from '@/editor/document/sampleDocument';
 import type { EditorDocument, EditorObject, Frame, ObjectStyle, PageSize, Unit } from '@/editor/document/types';
+import { getArrayPaths, getValueAtPath } from '@/editor/template-language/context';
 import { jsonEditorExtensions } from '@/plugin/codemirror/extensions/json-editor/json-editor';
 import { templateAutocomplete } from '@/plugin/codemirror/extensions/template-autocomplete/template-autocomplete';
+
+type TemplateForEach = NonNullable<EditorObject['template']>['forEach'];
 
 type EditViewProps = {
   contextError?: string;
@@ -124,10 +130,68 @@ const updateObject = (
     return object;
   });
 
+const findObjectPath = (objects: EditorObject[], id: string, path: EditorObject[] = []): EditorObject[] => {
+  for (const object of objects) {
+    const nextPath = [...path, object];
+
+    if (object.id === id) {
+      return nextPath;
+    }
+
+    const childPath = object.children ? findObjectPath(object.children, id, nextPath) : [];
+    if (childPath.length > 0) {
+      return childPath;
+    }
+  }
+
+  return [];
+};
+
 const setNullableNumber = (value: string) => {
   if (value.trim() === '') return undefined;
   const next = Number(value);
   return Number.isFinite(next) ? next : undefined;
+};
+
+const templateBehaviorHasValues = (template: EditorObject['template']) =>
+  Boolean(template?.if || template?.forEach?.item || template?.forEach?.collection);
+
+const getDefaultLoopItem = (collection: string) => {
+  const segments = collection.split('.').filter(Boolean);
+  const segment = segments[segments.length - 1] ?? 'item';
+  const singular = segment.endsWith('s') && segment.length > 1 ? segment.slice(0, -1) : segment;
+  const normalized = singular.replaceAll(/[^a-zA-Z0-9_$]/g, '');
+
+  if (!normalized) return 'item';
+  if (/^[0-9]/.test(normalized)) return `item${normalized}`;
+
+  return normalized;
+};
+
+const getLoopItemValue = (context: Record<string, unknown>, collection: string) => {
+  const value = getValueAtPath(context, collection);
+
+  if (!Array.isArray(value)) return {};
+
+  return value[0] ?? {};
+};
+
+const buildScopedTemplateContext = (
+  context: Record<string, unknown>,
+  objects: EditorObject[],
+  selectedId: string,
+) => {
+  const objectPath = findObjectPath(objects, selectedId);
+  const scopedContext = { ...context };
+
+  objectPath.slice(0, -1).forEach((object) => {
+    const loop = object.template?.forEach;
+    if (!loop?.item || !loop.collection) return;
+
+    scopedContext[loop.item] = getLoopItemValue(context, loop.collection);
+  });
+
+  return scopedContext;
 };
 
 export function EditView({
@@ -147,7 +211,7 @@ export function EditView({
   const [isPanning, setIsPanning] = useState(false);
   const [draggingId, setDraggingId] = useState<string>();
   const [openPanels, setOpenPanels] = useState<Set<string>>(
-    () => new Set(['context', 'tree', 'object', 'text', 'style']),
+    () => new Set(['context', 'tree', 'object', 'text', 'template', 'style']),
   );
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     () => new Set(['page-1', ...flattenObjects(documentState.objects).map((object) => object.id)]),
@@ -167,6 +231,21 @@ export function EditView({
   const selectedObject = useMemo(
     () => allObjects.find((object) => object.id === selectedId),
     [allObjects, selectedId],
+  );
+  const selectedCanRepeat = selectedObject?.type === 'container';
+  const selectedLoop = selectedObject?.template?.forEach;
+  const arrayPathOptions = useMemo(() => getArrayPaths(lastValidContext), [lastValidContext]);
+  const selectedTemplateContext = useMemo(
+    () => buildScopedTemplateContext(lastValidContext, documentState.objects, selectedId),
+    [documentState.objects, lastValidContext, selectedId],
+  );
+  const absoluteObjects = useMemo(
+    () => documentState.objects.filter((object) => object.position !== 'normal'),
+    [documentState.objects],
+  );
+  const normalObjects = useMemo(
+    () => documentState.objects.filter((object) => object.position === 'normal'),
+    [documentState.objects],
   );
   const horizontalRulerTicks = useMemo(
     () => buildRulerTicks('horizontal', viewport, documentState.unit, stageSize),
@@ -255,8 +334,8 @@ export function EditView({
 
   const contextEditorExtensions = useMemo(() => jsonEditorExtensions(), []);
   const templateEditorExtensions = useMemo(
-    () => [templateAutocomplete(lastValidContext), EditorView.lineWrapping],
-    [lastValidContext],
+    () => [templateAutocomplete(selectedTemplateContext), EditorView.lineWrapping],
+    [selectedTemplateContext],
   );
 
   const clampZoom = (zoom: number) => Math.min(maxZoom, Math.max(minZoom, zoom));
@@ -485,6 +564,71 @@ export function EditView({
     }));
   };
 
+  const updateSelectedPosition = (position: EditorObject['position']) => {
+    if (!selectedObject) return;
+
+    setDocumentState((current) => ({
+      ...current,
+      objects: updateObject(current.objects, selectedObject.id, (object) => ({
+        ...object,
+        position,
+      })),
+    }));
+  };
+
+  const updateSelectedLoop = (forEach: TemplateForEach | undefined) => {
+    if (!selectedObject) return;
+
+    setDocumentState((current) => ({
+      ...current,
+      objects: updateObject(current.objects, selectedObject.id, (object) => {
+        const template = {
+          ...object.template,
+          forEach,
+        };
+
+        return {
+          ...object,
+          template: templateBehaviorHasValues(template) ? template : undefined,
+        };
+      }),
+    }));
+  };
+
+  const enableSelectedLoop = (enabled: boolean) => {
+    if (!selectedObject) return;
+
+    if (!enabled) {
+      updateSelectedLoop(undefined);
+      return;
+    }
+
+    const collection = selectedObject.template?.forEach?.collection || arrayPathOptions[0] || '';
+
+    updateSelectedLoop({
+      collection,
+      item: selectedObject.template?.forEach?.item || getDefaultLoopItem(collection),
+    });
+  };
+
+  const updateSelectedLoopCollection = (collection: string) => {
+    if (!selectedObject) return;
+
+    updateSelectedLoop({
+      collection,
+      item: selectedObject.template?.forEach?.item || getDefaultLoopItem(collection),
+    });
+  };
+
+  const updateSelectedLoopItem = (item: string) => {
+    if (!selectedObject) return;
+
+    updateSelectedLoop({
+      collection: selectedObject.template?.forEach?.collection || arrayPathOptions[0] || '',
+      item,
+    });
+  };
+
   const togglePanel = (id: string) => {
     setOpenPanels((current) => {
       const next = new Set(current);
@@ -677,6 +821,7 @@ export function EditView({
 
         <section
           className={isPanning ? 'stage panning' : 'stage edit'}
+          onClick={() => setSelectedId('')}
           onAuxClick={handleStageAuxClick}
           onPointerCancel={stopPanning}
           onPointerDown={handleStagePointerDown}
@@ -727,7 +872,7 @@ export function EditView({
                   )}
                 </>
               )}
-              {documentState.objects.map((object) => (
+              {absoluteObjects.map((object) => (
                 <EditorCanvasObject
                   draggingId={draggingId}
                   key={object.id}
@@ -741,6 +886,38 @@ export function EditView({
                   zoom={viewport.zoom}
                 />
               ))}
+              <div
+                className="page-content-area"
+                style={{
+                  left: scaledUnit(documentState.page.margin.left, documentState.unit, viewport.zoom),
+                  top: scaledUnit(documentState.page.margin.top, documentState.unit, viewport.zoom),
+                  width: `calc(${scaledUnit(documentState.page.size.width, documentState.unit, viewport.zoom)} - ${scaledUnit(
+                    documentState.page.margin.left + documentState.page.margin.right,
+                    documentState.unit,
+                    viewport.zoom,
+                  )})`,
+                  minHeight: `calc(${scaledUnit(documentState.page.size.height, documentState.unit, viewport.zoom)} - ${scaledUnit(
+                    documentState.page.margin.top + documentState.page.margin.bottom,
+                    documentState.unit,
+                    viewport.zoom,
+                  )})`,
+                }}
+              >
+                {normalObjects.map((object) => (
+                  <EditorCanvasObject
+                    draggingId={draggingId}
+                    key={object.id}
+                    object={object}
+                    objectDragRef={objectDragRef}
+                    onSelect={setSelectedId}
+                    onStartDragging={setDraggingId}
+                    selectedId={selectedId}
+                    showBoxModel={showBoxModel}
+                    unit={documentState.unit}
+                    zoom={viewport.zoom}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -755,15 +932,26 @@ export function EditView({
             titleMeta={selectedObject ? <span className="type-chip">{selectedObject.type}</span> : undefined}
           >
             {selectedObject ? (
-              <div className="control-grid two">
-                {(['x', 'y', 'width', 'height'] as const).map((key) => (
-                  <NumberField
-                    key={key}
-                    label={key === 'width' ? 'W' : key === 'height' ? 'H' : key.toUpperCase()}
-                    onChange={(event) => updateSelectedFrame(key, event.target.value)}
-                    value={selectedObject.frame[key]}
+              <div className="control-grid">
+                {selectedObject.type === 'container' && (
+                  <ToggleField
+                    checked={selectedObject.position !== 'normal'}
+                    label="Absolute"
+                    onChange={(event) => updateSelectedPosition(event.target.checked ? 'absolute' : 'normal')}
                   />
-                ))}
+                )}
+
+                <div className="control-grid two">
+                  {(['x', 'y', 'width', 'height'] as const).map((key) => (
+                    <NumberField
+                      disabled={selectedObject.type === 'container' && selectedObject.position === 'normal' && (key === 'x' || key === 'y')}
+                      key={key}
+                      label={key === 'width' ? 'W' : key === 'height' ? 'H' : key.toUpperCase()}
+                      onChange={(event) => updateSelectedFrame(key, event.target.value)}
+                      value={selectedObject.frame[key]}
+                    />
+                  ))}
+                </div>
               </div>
             ) : (
               <p className="empty-state">Selecione um objeto no canvas.</p>
@@ -787,6 +975,46 @@ export function EditView({
                       value={selectedObject.content ?? ''}
                     />
                   </div>
+                </AccordionPanel>
+              )}
+
+              {selectedCanRepeat && (
+                <AccordionPanel id="template" icon={<Repeat2 size={16} />} onToggle={togglePanel} openPanels={openPanels} title="Template">
+                  <ToggleField
+                    checked={Boolean(selectedLoop)}
+                    disabled={arrayPathOptions.length === 0}
+                    label="For"
+                    onChange={(event) => enableSelectedLoop(event.target.checked)}
+                  />
+
+                  {selectedLoop && (
+                    <>
+                      <SelectField
+                        label="Array"
+                        onChange={(event) => updateSelectedLoopCollection(event.target.value)}
+                        stacked
+                        value={selectedLoop.collection}
+                      >
+                        {arrayPathOptions.length === 0 ? (
+                          <option value="">No arrays found</option>
+                        ) : (
+                          arrayPathOptions.map((path) => (
+                            <option key={path} value={path}>
+                              {path}
+                            </option>
+                          ))
+                        )}
+                      </SelectField>
+
+                      <TextField
+                        label="Item"
+                        onChange={(event) => updateSelectedLoopItem(event.target.value)}
+                        placeholder="user"
+                        stacked
+                        value={selectedLoop.item}
+                      />
+                    </>
+                  )}
                 </AccordionPanel>
               )}
 
@@ -866,7 +1094,7 @@ export function EditView({
                   <option value="right">Right</option>
                 </SelectField>
 
-                {(selectedObject.type === 'container' || selectedObject.type === 'group') && (
+                {selectedObject.type === 'container' && (
                   <>
                     <SelectField
                       label="Display"

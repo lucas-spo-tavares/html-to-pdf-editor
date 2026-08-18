@@ -406,6 +406,16 @@
   background-size: 10mm 10mm;
 }
 
+.page-content-area {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.page-content-area > .canvas-object {
+  pointer-events: auto;
+}
+
 .margin-overlay,
 .padding-overlay {
   position: absolute;
@@ -458,6 +468,10 @@
   cursor: grab;
   outline: none;
   user-select: none;
+}
+
+.canvas-object-container {
+  overflow: hidden;
 }
 
 .canvas-object.dragging,
@@ -767,6 +781,83 @@
 .control-field.stacked select {
   border-top: 1px solid #eaecf0;
   border-left: 0;
+}
+
+.control-field:has(input:disabled),
+.control-field:has(select:disabled) {
+  border-color: #d0d5dd;
+  background: #f2f4f7;
+}
+
+.control-field input:disabled,
+.control-field select:disabled {
+  background: #eaecf0;
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
+.toggle-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+  padding: 0 8px;
+}
+
+.toggle-field > span:first-child {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.toggle-field input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggle-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #d0d5dd;
+  transition: background 0.16s ease;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 24%);
+  transition: transform 0.16s ease;
+}
+
+.toggle-field input:checked + .toggle-track {
+  background: #1570ef;
+}
+
+.toggle-field input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.toggle-field input:focus-visible + .toggle-track {
+  outline: 2px solid #84caff;
+  outline-offset: 2px;
+}
+
+.toggle-field:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .color-field input {

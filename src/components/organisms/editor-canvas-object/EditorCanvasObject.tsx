@@ -25,27 +25,33 @@ type EditorCanvasObjectProps = {
 
 const scaledUnit = (value: number, unit: Unit, zoom: number) => `calc(${value}${unit} * ${zoom})`;
 
-const objectStyle = (object: EditorObject, unit: Unit, zoom: number, selected: boolean): CSSProperties => ({
-  left: scaledUnit(object.frame.x, unit, zoom),
-  top: scaledUnit(object.frame.y, unit, zoom),
-  width: scaledUnit(object.frame.width, unit, zoom),
-  height: scaledUnit(object.frame.height, unit, zoom),
-  background: object.style.background,
-  color: object.style.color,
-  border: object.style.border,
-  outline: selected ? '1.5px solid #1570ef' : undefined,
-  borderRadius: object.style.borderRadius === undefined ? undefined : scaledUnit(object.style.borderRadius, unit, zoom),
-  padding: object.style.padding === undefined ? undefined : scaledUnit(object.style.padding, unit, zoom),
-  fontSize: object.style.fontSize === undefined ? undefined : `calc(${object.style.fontSize}pt * ${zoom})`,
-  fontWeight: object.style.fontWeight,
-  lineHeight: object.style.lineHeight,
-  textAlign: object.style.textAlign,
-  display: object.style.display,
-  flexDirection: object.style.flexDirection,
-  alignItems: object.style.alignItems,
-  justifyContent: object.style.justifyContent,
-  gap: object.style.gap === undefined ? undefined : scaledUnit(object.style.gap, unit, zoom),
-});
+const objectStyle = (object: EditorObject, unit: Unit, zoom: number, selected: boolean, flowPosition: boolean): CSSProperties => {
+  const normal = flowPosition || object.position === 'normal';
+
+  return {
+    position: normal ? 'relative' : undefined,
+    left: normal ? undefined : scaledUnit(object.frame.x, unit, zoom),
+    top: normal ? undefined : scaledUnit(object.frame.y, unit, zoom),
+    width: scaledUnit(object.frame.width, unit, zoom),
+    height: normal ? undefined : scaledUnit(object.frame.height, unit, zoom),
+    minHeight: normal ? scaledUnit(object.frame.height, unit, zoom) : undefined,
+    background: object.style.background,
+    color: object.style.color,
+    border: object.style.border,
+    outline: selected ? '1.5px solid #1570ef' : undefined,
+    borderRadius: object.style.borderRadius === undefined ? undefined : scaledUnit(object.style.borderRadius, unit, zoom),
+    padding: object.style.padding === undefined ? undefined : scaledUnit(object.style.padding, unit, zoom),
+    fontSize: object.style.fontSize === undefined ? undefined : `calc(${object.style.fontSize}pt * ${zoom})`,
+    fontWeight: object.style.fontWeight,
+    lineHeight: object.style.lineHeight,
+    textAlign: object.style.textAlign,
+    display: object.style.display,
+    flexDirection: object.style.flexDirection,
+    alignItems: object.style.alignItems,
+    justifyContent: object.style.justifyContent,
+    gap: object.style.gap === undefined ? undefined : scaledUnit(object.style.gap, unit, zoom),
+  };
+};
 
 export function EditorCanvasObject({
   object,
@@ -61,6 +67,7 @@ export function EditorCanvasObject({
 }: EditorCanvasObjectProps) {
   const selected = selectedId === object.id;
   const dragging = draggingId === object.id;
+  const flowPosition = nested || object.position === 'normal';
   const padding = object.style.padding ?? 0;
   const content =
     object.type === 'text' ? (
@@ -84,10 +91,17 @@ export function EditorCanvasObject({
     );
 
   const selectObject = () => onSelect(object.id);
+  const classes = [
+    nested ? 'canvas-child-object' : 'canvas-object',
+    `canvas-object-${object.type}`,
+    dragging ? 'dragging' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div
-      className={`${nested ? 'canvas-child-object' : 'canvas-object'}${dragging ? ' dragging' : ''}`}
+      className={classes}
       onClick={(event) => {
         event.stopPropagation();
         selectObject();
@@ -97,6 +111,11 @@ export function EditorCanvasObject({
 
         event.preventDefault();
         event.stopPropagation();
+        if (flowPosition) {
+          onSelect(object.id);
+          return;
+        }
+
         objectDragRef.current = {
           pointerId: event.pointerId,
           objectId: object.id,
@@ -116,7 +135,7 @@ export function EditorCanvasObject({
         }
       }}
       role="button"
-      style={objectStyle(object, unit, zoom, selected)}
+      style={objectStyle(object, unit, zoom, selected, flowPosition)}
       tabIndex={0}
     >
       {showBoxModel && padding > 0 && (
