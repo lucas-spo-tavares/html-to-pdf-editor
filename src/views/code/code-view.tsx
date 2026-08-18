@@ -3,10 +3,10 @@ import CodeMirror from '@uiw/react-codemirror';
 import { html as htmlLanguage } from '@codemirror/lang-html';
 import { EditorView } from '@codemirror/view';
 import { Copy } from 'lucide-react';
-import { Button } from '../../components/atoms/button/button';
-import type { EditorDocument } from '../../editor/document/types';
-import { generateTemplateHtml } from '../../editor/document/htmlGenerator';
-import { formatHtml } from '../../editor/template-language/formatHtml';
+import { Button } from '@/components/atoms/button/button';
+import { generateTemplateHtml } from '@/editor/document/htmlGenerator';
+import type { EditorDocument } from '@/editor/document/types';
+import { formatHtml } from '@/editor/template-language/formatHtml';
 
 type CodeViewProps = {
   documentState: EditorDocument;

@@ -1,4 +1,4 @@
-import type { EditorDocument } from './types';
+import type { EditorDocument } from '@/editor/document/types';
 
 export const sampleDocument: EditorDocument = {
   title: 'Invoice template',

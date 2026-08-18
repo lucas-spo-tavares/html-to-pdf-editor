@@ -17,19 +17,19 @@ import {
   SlidersHorizontal,
   Type as TypeIcon,
 } from 'lucide-react';
-import { AccordionPanel } from '../../components/atoms/accordion-panel/accordion-panel';
-import { Button } from '../../components/atoms/button/button';
-import { NumberField } from '../../components/atoms/number-field/number-field';
-import { SelectField } from '../../components/atoms/select-field/select-field';
-import { BorderControl } from '../../components/molecules/border-control/border-control';
-import { EditorCanvasObject } from '../../components/organisms/editor-canvas-object/editor-canvas-object';
-import { EditorObjectTree } from '../../components/organisms/editor-object-tree/editor-object-tree';
-import { EditorRuler } from '../../components/organisms/editor-ruler/editor-ruler';
-import { SidePanel } from '../../components/organisms/side-panel/side-panel';
-import type { EditorDocument, EditorObject, Frame, ObjectStyle, PageSize, Unit } from '../../editor/document/types';
-import { sampleDocument } from '../../editor/document/sampleDocument';
-import { jsonEditorExtensions } from '../../plugin/codemirror/extensions/json-editor/json-editor';
-import { templateAutocomplete } from '../../plugin/codemirror/extensions/template-autocomplete/template-autocomplete';
+import { AccordionPanel } from '@/components/atoms/accordion-panel/accordion-panel';
+import { Button } from '@/components/atoms/button/button';
+import { NumberField } from '@/components/atoms/number-field/number-field';
+import { SelectField } from '@/components/atoms/select-field/select-field';
+import { BorderControl } from '@/components/molecules/border-control/border-control';
+import { EditorCanvasObject } from '@/components/organisms/editor-canvas-object/editor-canvas-object';
+import { EditorObjectTree } from '@/components/organisms/editor-object-tree/editor-object-tree';
+import { EditorRuler } from '@/components/organisms/editor-ruler/editor-ruler';
+import { SidePanel } from '@/components/organisms/side-panel/side-panel';
+import { sampleDocument } from '@/editor/document/sampleDocument';
+import type { EditorDocument, EditorObject, Frame, ObjectStyle, PageSize, Unit } from '@/editor/document/types';
+import { jsonEditorExtensions } from '@/plugin/codemirror/extensions/json-editor/json-editor';
+import { templateAutocomplete } from '@/plugin/codemirror/extensions/template-autocomplete/template-autocomplete';
 
 type EditViewProps = {
   contextError?: string;

@@ -1,4 +1,4 @@
-import type { Unit } from '../../../editor/document/types';
+import type { Unit } from '@/editor/document/types';
 
 type RulerTick = {
   value: number;

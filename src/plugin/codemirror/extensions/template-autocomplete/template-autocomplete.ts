@@ -1,6 +1,6 @@
 import { autocompletion, type CompletionContext } from '@codemirror/autocomplete';
 import type { Extension } from '@codemirror/state';
-import { getPathSuggestions } from '../../../../editor/template-language/context';
+import { getPathSuggestions } from '@/editor/template-language/context';
 
 type TypingExpression = {
   path: string;

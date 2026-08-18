@@ -1,4 +1,4 @@
-import type { EditorDocument, EditorObject, ObjectStyle, Unit } from './types';
+import type { EditorDocument, EditorObject, ObjectStyle, Unit } from '@/editor/document/types';
 
 const escapeHtml = (value: string) =>
   value

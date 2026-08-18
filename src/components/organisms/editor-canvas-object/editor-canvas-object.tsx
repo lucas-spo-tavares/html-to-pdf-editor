@@ -1,5 +1,5 @@
 import type { CSSProperties, MutableRefObject } from 'react';
-import type { EditorObject, Unit } from '../../../editor/document/types';
+import type { EditorObject, Unit } from '@/editor/document/types';
 
 type ObjectDragState = {
   pointerId: number;

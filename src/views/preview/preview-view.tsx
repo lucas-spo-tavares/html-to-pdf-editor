@@ -1,12 +1,12 @@
 import { useMemo, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { Braces, FileText } from 'lucide-react';
-import { Button } from '../../components/atoms/button/button';
-import { NumberField } from '../../components/atoms/number-field/number-field';
-import { StaticAccordionPanel } from '../../components/atoms/static-accordion-panel/static-accordion-panel';
-import { SidePanel } from '../../components/organisms/side-panel/side-panel';
-import type { EditorDocument } from '../../editor/document/types';
-import { jsonEditorExtensions } from '../../plugin/codemirror/extensions/json-editor/json-editor';
+import { Button } from '@/components/atoms/button/button';
+import { NumberField } from '@/components/atoms/number-field/number-field';
+import { StaticAccordionPanel } from '@/components/atoms/static-accordion-panel/static-accordion-panel';
+import { SidePanel } from '@/components/organisms/side-panel/side-panel';
+import type { EditorDocument } from '@/editor/document/types';
+import { jsonEditorExtensions } from '@/plugin/codemirror/extensions/json-editor/json-editor';
 
 type RenderedTemplate = {
   html: string;

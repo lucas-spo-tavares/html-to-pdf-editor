@@ -1,6 +1,6 @@
 import { Box, ChevronDown, ChevronRight, Layers, Type as TypeIcon } from 'lucide-react';
-import { Button } from '../../atoms/button/button';
-import type { EditorObject } from '../../../editor/document/types';
+import { Button } from '@/components/atoms/button/button';
+import type { EditorObject } from '@/editor/document/types';
 
 type EditorObjectTreeProps = {
   object: EditorObject;
